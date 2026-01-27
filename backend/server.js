@@ -24,6 +24,8 @@ app.use('/api/profile', profileRoutes);
 const resumeRoutes = require('./src/routes/resumeRoutes');
 app.use('/api/resume', resumeRoutes);
 
+const aiRoutes = require('./src/routes/aiRoutes');
+app.use('/api/ai', aiRoutes);
 
 
 
