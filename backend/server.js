@@ -10,7 +10,7 @@ dotenv.config();
 connectDB();
 
 const app = express();
-
+// test 101
 // Middlewares
 app.use(cors());
 app.use(express.json()); // to read JSON body
