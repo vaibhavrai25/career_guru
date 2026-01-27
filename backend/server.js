@@ -21,6 +21,10 @@ app.use('/api/auth', authRoutes);
 const profileRoutes = require('./src/routes/profileRoutes');
 app.use('/api/profile', profileRoutes);
 
+const resumeRoutes = require('./src/routes/resumeRoutes');
+app.use('/api/resume', resumeRoutes);
+
+
 
 
 // Health Route

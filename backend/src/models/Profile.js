@@ -10,6 +10,9 @@ const profileSchema = new mongoose.Schema(
     skills: [String],
     interests: [String],
     targetRole: String,
+    resumeUrl: String,
+    resumeText: String,
+
   },
   { timestamps: true }
 );
