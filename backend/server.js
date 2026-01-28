@@ -27,6 +27,11 @@ app.use('/api/resume', resumeRoutes);
 const aiRoutes = require('./src/routes/aiRoutes');
 app.use('/api/ai', aiRoutes);
 
+const codingRoutes = require('./src/routes/codingRoutes');
+app.use('/api/coding', codingRoutes);
+
+const statsRoutes = require('./src/routes/statsRoutes');
+app.use('/api/stats', statsRoutes);
 
 
 // Health Route

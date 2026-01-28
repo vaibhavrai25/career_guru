@@ -12,6 +12,10 @@ const profileSchema = new mongoose.Schema(
     targetRole: String,
     resumeUrl: String,
     resumeText: String,
+    codeforcesHandle: { type: String },
+leetcodeHandle: { type: String },
+githubHandle: { type: String },
+codechefHandle: { type: String },
 
   },
   { timestamps: true }

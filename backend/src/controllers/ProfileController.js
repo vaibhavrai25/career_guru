@@ -3,7 +3,7 @@ const Profile = require('../models/Profile');
 // Create or Update Profile
 exports.upsertProfile = async (req, res) => {
   try {
-    const { education, skills, interests, targetRole } = req.body;
+    const { education, skills, interests, targetRole, codeforcesHandle, leetcodeHandle, githubHandle, codechefHandle } = req.body;
 
     let profile = await Profile.findOne({ userId: req.user._id });
 
@@ -12,6 +12,10 @@ exports.upsertProfile = async (req, res) => {
       profile.skills = skills;
       profile.interests = interests;
       profile.targetRole = targetRole;
+      profile.codeforcesHandle = codeforcesHandle;
+profile.leetcodeHandle = leetcodeHandle;
+profile.githubHandle = githubHandle;
+profile.codechefHandle = codechefHandle;
       await profile.save();
     } else {
       profile = await Profile.create({
@@ -20,6 +24,10 @@ exports.upsertProfile = async (req, res) => {
         skills,
         interests,
         targetRole,
+        codeforcesHandle,
+  leetcodeHandle,
+  githubHandle,
+  codechefHandle,
       });
     }
 
