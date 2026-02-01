@@ -21,6 +21,17 @@ app.use('/api/auth', authRoutes);
 const profileRoutes = require('./src/routes/profileRoutes');
 app.use('/api/profile', profileRoutes);
 
+const resumeRoutes = require('./src/routes/resumeRoutes');
+app.use('/api/resume', resumeRoutes);
+
+const aiRoutes = require('./src/routes/aiRoutes');
+app.use('/api/ai', aiRoutes);
+
+const codingRoutes = require('./src/routes/codingRoutes');
+app.use('/api/coding', codingRoutes);
+
+const statsRoutes = require('./src/routes/statsRoutes');
+app.use('/api/stats', statsRoutes);
 
 
 // Health Route
