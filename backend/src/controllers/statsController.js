@@ -404,3 +404,67 @@ exports.getCodingPersona = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+exports.getDashboardSummary = async (req, res) => {
+  try {
+    const codingProfile = await CodingProfile.findOne({
+      userId: req.user._id,
+    });
+
+    if (!codingProfile) {
+      return res.json({
+        totalSolved: 0,
+        streak: 0,
+        strongestTopic: "-",
+        topics: {},
+      });
+    }
+
+    // ✅ total solved (CF + LC)
+    const cfSolved = codingProfile.codeforces?.totalSolved || 0;
+    const lcSolved = codingProfile.leetcode?.totalSolved || 0;
+    const totalSolved = cfSolved + lcSolved;
+
+    // ✅ strongest topic (from CF tags)
+    const topics = codingProfile.codeforces?.topicWise || {};
+
+    let strongestTopic = "-";
+    if (Object.keys(topics).length) {
+      strongestTopic = Object.keys(topics).reduce((a, b) =>
+        topics[a] > topics[b] ? a : b
+      );
+    }
+
+    // ✅ get streak from your existing engine
+    const problems = await SolvedProblem.find(
+      { userId: req.user._id },
+      { date: 1, _id: 0 }
+    );
+
+    const dates = [...new Set(problems.map(p => p.date))].sort();
+
+    const toDate = d => new Date(d);
+    const diffDays = (a, b) =>
+      (toDate(b) - toDate(a)) / (1000 * 60 * 60 * 24);
+
+    let today = new Date().toISOString().split('T')[0];
+    let streak = 0;
+
+    for (let i = dates.length - 1; i >= 0; i--) {
+      if (diffDays(dates[i], today) === streak) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+
+    res.json({
+      totalSolved,
+      streak,
+      strongestTopic,
+      topics,
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
