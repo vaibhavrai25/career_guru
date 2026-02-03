@@ -12,6 +12,12 @@ router.get('/consistency', protect, getConsistencyStats);
 router.get('/difficulty-trend', protect, getDifficultyTrend);
 router.get('/topic-strength', protect, getTopicStrength);
 router.get('/coding-persona', protect, getCodingPersona);
+const { getDashboardSummary } = require('../controllers/statsController');
+
+router.get('/summary', protect, getDashboardSummary);
+
+
+
 
 
 
