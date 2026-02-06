@@ -18,8 +18,10 @@ app.use(express.json()); // to read JSON body
 const authRoutes = require('./src/routes/authRoutes');
 
 app.use('/api/auth', authRoutes);
-const profileRoutes = require('./src/routes/profileRoutes');
+const profileRoutes = require('./routes/profileRoutes');
+
 app.use('/api/profile', profileRoutes);
+
 
 const resumeRoutes = require('./src/routes/resumeRoutes');
 app.use('/api/resume', resumeRoutes);
