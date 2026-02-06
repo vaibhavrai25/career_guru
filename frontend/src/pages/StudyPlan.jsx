@@ -1,93 +1,128 @@
+import { useEffect, useState, useContext } from "react";
 import MainLayout from "../layouts/MainLayout";
+import { AuthContext } from "../context/AuthContext";
+import {
+  getStudyPlan,
+  getStudyTopics,
+  getTodayTasks,
+  toggleTask,
+} from "../api/studyPlan";
 
-const ResourceCard = ({ title, source, link }) => (
-  <div className="bg-gray-50 border rounded-lg p-4 hover:shadow transition">
-    <h4 className="font-semibold text-lg">{title}</h4>
-    <p className="text-sm text-gray-500 mt-1">{source}</p>
-    <a
-      href={link}
-      target="_blank"
-      rel="noreferrer"
-      className="text-blue-600 text-sm mt-2 inline-block"
-    >
-      Visit Resource →
-    </a>
-  </div>
-);
+const ProgressBar = ({ total, completed }) => {
+  const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+  return (
+    <div className="w-full bg-gray-200 rounded h-2 mt-2">
+      <div
+        className="bg-green-500 h-2 rounded"
+        style={{ width: `${percent}%` }}
+      />
+    </div>
+  );
+};
 
 const StudyPlan = () => {
+  const { user } = useContext(AuthContext);
+
+  const [plan, setPlan] = useState(null);
+  const [topics, setTopics] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const token = user.token;
+
+        const planRes = await getStudyPlan(token);
+        setPlan(planRes.data);
+
+        const topicsRes = await getStudyTopics(planRes.data._id, token);
+        setTopics(topicsRes.data);
+
+        const tasksRes = await getTodayTasks(token);
+        setTasks(tasksRes.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user) load();
+  }, [user]);
+
+  const handleToggle = async (id) => {
+    await toggleTask(id, user.token);
+    const updated = await getTodayTasks(user.token);
+    setTasks(updated.data);
+  };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <p className="text-gray-500">Loading study plan...</p>
+      </MainLayout>
+    );
+  }
+
   return (
     <MainLayout>
-      <h1 className="text-3xl font-bold mb-8">Your Personalized Study Plan</h1>
+      <h1 className="text-3xl font-bold mb-8">Your Study Plan</h1>
 
-      {/* Weak Topic Highlight */}
+      {/* 🔥 Focus Topic */}
       <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded mb-10">
-        <h2 className="text-xl font-semibold text-red-600">Focus Topic: Segment Tree</h2>
+        <h2 className="text-xl font-semibold text-red-600">
+          Focus Topic: {plan.focusTopic || "Segment Tree"}
+        </h2>
         <p className="text-gray-600 mt-2">
-          You have solved very few problems in this topic. Strengthening this
-          will significantly improve your performance in contests and interviews.
+          {plan.reason || "Low practice detected in this topic"}
         </p>
       </div>
 
-      {/* Theory Section */}
+      {/* 📊 Topic Progress */}
       <div className="mb-10">
-        <h2 className="text-2xl font-semibold mb-4">📘 Learn the Theory</h2>
-        <div className="grid grid-cols-3 gap-6">
-          <ResourceCard
-            title="Segment Tree Explained"
-            source="GeeksforGeeks"
-            link="#"
-          />
-          <ResourceCard
-            title="Segment Tree Visual Guide"
-            source="YouTube - Abdul Bari"
-            link="#"
-          />
-          <ResourceCard
-            title="Segment Tree Notes"
-            source="CP Algorithms"
-            link="#"
-          />
-        </div>
-      </div>
-
-      {/* Practice Questions */}
-      <div className="mb-10">
-        <h2 className="text-2xl font-semibold mb-4">💻 Practice Questions</h2>
+        <h2 className="text-2xl font-semibold mb-4">📊 Topic Progress</h2>
         <div className="grid grid-cols-2 gap-6">
-          <ResourceCard
-            title="CF - Range Sum Query"
-            source="Codeforces"
-            link="#"
-          />
-          <ResourceCard
-            title="LC - Segment Tree Implementation"
-            source="LeetCode"
-            link="#"
-          />
-          <ResourceCard
-            title="CF - Xenia and Bit Operations"
-            source="Codeforces"
-            link="#"
-          />
-          <ResourceCard
-            title="LC - Count of Smaller Numbers"
-            source="LeetCode"
-            link="#"
-          />
+          {topics.map((t) => (
+            <div key={t._id} className="bg-white p-4 rounded shadow">
+              <h3 className="font-semibold">{t.name}</h3>
+              <p className="text-sm text-gray-500">
+                {t.completedTasks}/{t.totalTasks} tasks completed
+              </p>
+              <ProgressBar
+                total={t.totalTasks}
+                completed={t.completedTasks}
+              />
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Roadmap */}
-      <div className="bg-white p-6 rounded-xl shadow">
-        <h2 className="text-2xl font-semibold mb-4">🗺️ Suggested Roadmap</h2>
-        <ul className="space-y-3 text-gray-700">
-          <li>✅ Day 1: Understand basics and build segment tree</li>
-          <li>✅ Day 2: Solve 5 easy problems</li>
-          <li>✅ Day 3: Solve 5 medium problems</li>
-          <li>✅ Day 4: Attempt 2 hard problems</li>
-          <li>✅ Day 5: Revise and reimplement from scratch</li>
-        </ul>
+      {/* ✅ Today Checklist */}
+      <div className="mb-10">
+        <h2 className="text-2xl font-semibold mb-4">✅ Today’s Tasks</h2>
+        <div className="space-y-3">
+          {tasks.map((task) => (
+            <div
+              key={task._id}
+              className="flex items-center gap-3 bg-gray-50 p-3 rounded"
+            >
+              <input
+                type="checkbox"
+                checked={task.completed}
+                onChange={() => handleToggle(task._id)}
+              />
+              <div>
+                <p className={task.completed ? "line-through text-gray-400" : ""}>
+                  {task.title}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {task.topicId?.name}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </MainLayout>
   );
