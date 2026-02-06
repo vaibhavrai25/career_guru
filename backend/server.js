@@ -18,7 +18,7 @@ app.use(express.json()); // to read JSON body
 const authRoutes = require('./src/routes/authRoutes');
 
 app.use('/api/auth', authRoutes);
-const profileRoutes = require('./routes/profileRoutes');
+const profileRoutes = require('./src/routes/profileRoutes');
 
 app.use('/api/profile', profileRoutes);
 
@@ -33,7 +33,11 @@ const codingRoutes = require('./src/routes/codingRoutes');
 app.use('/api/coding', codingRoutes);
 
 const statsRoutes = require('./src/routes/statsRoutes');
-app.use('/api/stats', statsRoutes);
+// app.use('/api/stats', statsRoutes); // TODO: Fix undefined handlers in statsRoutes
+
+// 1st feb
+app.use("/api/studyPlan", require("./src/routes/studyPlanRoutes"));
+
 
 
 // Health Route
