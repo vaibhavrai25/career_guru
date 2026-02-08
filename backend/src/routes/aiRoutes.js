@@ -4,11 +4,16 @@ const { protect } = require('../middlewares/authMiddleware');
 const { analyzeResume } = require('../controllers/aiController');
 const ResumeAnalysis = require('../models/ResumeAnalysis');
 
-router.get('/analyze-resume', protect, analyzeResume);
+router.post('/analyze-resume', protect, analyzeResume);
 
 router.get('/analysis-result', protect, async (req, res) => {
-  const data = await ResumeAnalysis.findOne({ userId: req.user._id });
-  res.json(data);
+  try {
+    const data = await ResumeAnalysis.findOne({ userId: req.user._id });
+    if (!data) return res.status(404).json({ message: "No analysis found" });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

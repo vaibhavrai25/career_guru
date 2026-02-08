@@ -1,25 +1,20 @@
-import axios from "axios";
-
-const API = "http://localhost:5000/api/auth";
+import api from "./axios";
 
 export const registerUser = async (data) => {
-  const res = await axios.post(`${API}/register`, data);
+  const res = await api.post("/auth/register", data);
   return res.data;
 };
 
-
-
-
-
 export const loginUser = async (data) => {
   try {
-    console.log("Sending to backend:", data);   // 👈 add
-    const res = await axios.post(`${API}/login`, data);
-    console.log("Backend response:", res.data); // 👈 add
+    const res = await api.post("/auth/login", data);
+    // Store token on success for the interceptor to use
+    if (res.data.token) {
+      localStorage.setItem("token", res.data.token);
+    }
     return res.data;
   } catch (err) {
-    console.log("Full error:", err.response?.data); // 👈 add
+    console.error("Login error:", err.response?.data || err.message);
     throw err;
   }
 };
-

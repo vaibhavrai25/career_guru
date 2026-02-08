@@ -1,59 +1,94 @@
+import { useState, useEffect } from "react";
 import MainLayout from "../layouts/MainLayout";
-
-const SuggestionItem = ({ text }) => (
-  <li className="bg-gray-50 border p-3 rounded">{text}</li>
-);
+import api from "../api/axios";
 
 const ResumeAnalyzer = () => {
+  const [file, setFile] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Fetch previous analysis on load
+  useEffect(() => {
+    const fetchResult = async () => {
+      try {
+        const res = await api.get("/ai/analysis-result");
+        setAnalysis(res.data);
+      } catch (err) { console.log("No previous analysis found"); }
+    };
+    fetchResult();
+  }, []);
+
+  const handleUpload = async () => {
+    if (!file) return alert("Please select a file first");
+    
+    const formData = new FormData();
+    formData.append("resume", file);
+    
+    setUploading(true);
+    try {
+      await api.post("/resume/upload", formData);
+      const res = await api.post("/ai/analyze-resume");
+      setAnalysis(res.data);
+      alert("Analysis complete!");
+    } catch (err) {
+      alert("Upload or analysis failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <MainLayout>
-      <h1 className="text-3xl font-bold mb-8">Resume Analyzer</h1>
+      <h1 className="text-3xl font-bold mb-8">AI Resume Insights</h1>
 
-      {/* Upload Section */}
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow mb-10">
-        <h2 className="text-xl font-semibold mb-4">Upload Your Resume</h2>
-
-        <div className="border-2 border-dashed border-gray-300 p-10 text-center rounded-lg">
-          <p className="text-gray-500">
-            Drag & drop your resume here or click to upload (PDF)
-          </p>
-          <button className="mt-4 px-6 py-2 bg-blue-600 text-white rounded">
-            Upload Resume
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-md mb-8 transition-colors">
+        <h2 className="text-xl font-semibold mb-4">Update Resume</h2>
+        <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 p-8 rounded-lg">
+          <input 
+            type="file" 
+            accept=".pdf" 
+            onChange={(e) => setFile(e.target.files[0])}
+            className="mb-4 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+          <button 
+            onClick={handleUpload}
+            disabled={uploading}
+            className={`px-8 py-2 rounded-lg font-bold text-white transition-colors ${uploading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'}`}
+          >
+            {uploading ? "Analyzing..." : "Analyze PDF"}
           </button>
         </div>
       </div>
 
-      {/* Resume Score */}
-      <div className="grid grid-cols-3 gap-6 mb-10">
-        <div className="bg-green-50 dark:bg-green-900 p-6 rounded-xl shadow text-center">
-          <p className="text-gray-500">Resume Score</p>
-          <h2 className="text-4xl font-bold text-green-600 mt-2">78 / 100</h2>
-        </div>
+      {analysis && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <ResultCard title="ATS Score" value={`${analysis.ats_score}%`} color="text-green-500" />
+            <ResultCard title="Missing Skills" value={analysis.missing_skills_for_sde?.length || 0} color="text-yellow-500" />
+            <ResultCard title="Level" value={analysis.experience_level || "N/A"} color="text-blue-500" />
+          </div>
 
-        <div className="bg-yellow-50 dark:bg-yellow-900 p-6 rounded-xl shadow text-center">
-          <p className="text-gray-500">Missing Keywords</p>
-          <h2 className="text-3xl font-bold text-yellow-600 mt-2">12</h2>
-        </div>
-
-        <div className="bg-red-50 dark:bg-red-900 p-6 rounded-xl shadow text-center">
-          <p className="text-gray-500">Weak Sections</p>
-          <h2 className="text-3xl font-bold text-red-600 mt-2">Projects</h2>
-        </div>
-      </div>
-
-      {/* Suggestions */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow">
-        <h2 className="text-xl font-semibold mb-6 text-amber-200">Improvement Suggestions</h2>
-
-        <ul className="space-y-3">
-          <SuggestionItem text="Add more quantified achievements in projects." />
-          <SuggestionItem text="Include keywords like: REST API, JWT, MongoDB, React." />
-          <SuggestionItem text="Add GitHub and live project links." />
-          <SuggestionItem text="Improve formatting and section alignment." />
-        </ul>
-      </div>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md">
+            <h2 className="text-xl font-semibold mb-4 text-blue-600 dark:text-blue-400">Guru Suggestions</h2>
+            <ul className="space-y-2">
+              {analysis.suggestions?.map((s, i) => (
+                <li key={i} className="p-3 bg-gray-50 dark:bg-gray-700 rounded border dark:border-gray-600">
+                  {s}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
     </MainLayout>
   );
 };
+
+const ResultCard = ({ title, value, color }) => (
+  <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md text-center transition-colors">
+    <p className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-wider">{title}</p>
+    <p className={`text-4xl font-bold mt-2 ${color}`}>{value}</p>
+  </div>
+);
 
 export default ResumeAnalyzer;

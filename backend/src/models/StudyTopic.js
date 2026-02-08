@@ -8,17 +8,11 @@ const studyTopicSchema = new mongoose.Schema(
       required: true,
     },
     name: {
-      type: String, // DSA, OS, DBMS
+      type: String, // e.g., DSA, OS, DBMS
       required: true,
     },
-    totalTasks: {
-      type: Number,
-      default: 0,
-    },
-    completedTasks: {
-      type: Number,
-      default: 0,
-    },
+    totalTasks: { type: Number, default: 0 },
+    completedTasks: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

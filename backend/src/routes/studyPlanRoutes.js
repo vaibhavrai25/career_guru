@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const { protect } = require("../middlewares/authMiddleware");
-
 const {
   getOrCreateStudyPlan,
   addTopic,
@@ -11,16 +10,16 @@ const {
   getTopicProgress,
 } = require("../controllers/studyPlanController");
 
-// Study Plan
-router.get("/", protect, getOrCreateStudyPlan);
+// Plan Management
+router.get("/plan", protect, getOrCreateStudyPlan);
 
 // Topics
 router.post("/topic", protect, addTopic);
-router.get("/topics/:planId/progress", protect, getTopicProgress);
+router.get("/topics/:planId", protect, getTopicProgress); // Matches frontend getStudyTopics
 
 // Tasks
 router.post("/task", protect, addTask);
 router.get("/tasks/today", protect, getTodayTasks);
-router.patch("/task/:id/toggle", protect, toggleTask);
+router.patch("/tasks/:id/toggle", protect, toggleTask); // Matches frontend toggleTask path
 
 module.exports = router;

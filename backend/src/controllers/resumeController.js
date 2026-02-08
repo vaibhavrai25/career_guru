@@ -4,10 +4,14 @@ const streamifier = require('streamifier');
 
 exports.uploadResume = async (req, res) => {
   try {
-    const streamUpload = () =>
-      new Promise((resolve, reject) => {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const streamUpload = (req) => {
+      return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-          { folder: 'resumes' },
+          { folder: 'resumes', resource_type: 'auto' },
           (error, result) => {
             if (result) resolve(result);
             else reject(error);
@@ -15,17 +19,24 @@ exports.uploadResume = async (req, res) => {
         );
         streamifier.createReadStream(req.file.buffer).pipe(stream);
       });
+    };
 
-    const result = await streamUpload();
+    const result = await streamUpload(req);
 
-    await Profile.findOneAndUpdate(
+    // Save the Cloudinary URL to the user's profile
+    const updatedProfile = await Profile.findOneAndUpdate(
       { userId: req.user._id },
       { resumeUrl: result.secure_url },
-      { new: true }
+      { new: true, upsert: true }
     );
 
-    res.json({ message: 'Resume uploaded', url: result.secure_url });
+    res.json({ 
+      message: 'Resume uploaded and profile updated', 
+      url: result.secure_url,
+      profile: updatedProfile 
+    });
   } catch (err) {
+    console.error("Resume Upload Error:", err);
     res.status(500).json({ error: err.message });
   }
 };
