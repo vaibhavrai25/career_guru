@@ -1,25 +1,29 @@
-const multer = require('multer');
-const path = require('path');
+const multer = require("multer");
+const path = require("path");
 
-// Configure temporary disk storage
-const storage = multer.diskStorage({});
+const storage = multer.memoryStorage();
 
-// File filter to ensure only resumes are uploaded
 const fileFilter = (req, file, cb) => {
-  const filetypes = /pdf|doc|docx/;
-  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = filetypes.test(file.mimetype);
+  const allowedExtensions = /pdf/;
+  const extname = allowedExtensions.test(
+    path.extname(file.originalname).toLowerCase()
+  );
+
+  const allowedMimeTypes = ["application/pdf"];
+  const mimetype = allowedMimeTypes.includes(file.mimetype);
 
   if (extname && mimetype) {
     return cb(null, true);
-  } else {
-    cb(new Error('Error: Resumes must be PDF or Word documents!'));
   }
+
+  return cb(new Error("Only text-based PDF resumes are allowed right now."));
 };
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // Limit size to 5MB
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
   fileFilter,
 });
 

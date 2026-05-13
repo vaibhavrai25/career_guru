@@ -1,25 +1,28 @@
 const express = require("express");
 const router = express.Router();
-const { protect } = require("../middlewares/authMiddleware");
+
 const {
   getOrCreateStudyPlan,
-  addTopic,
   addTask,
+  getTasks,
   toggleTask,
   getTodayTasks,
   getTopicProgress,
+  generateAIRecommendations,
+  deleteTask,
 } = require("../controllers/studyPlanController");
 
-// Plan Management
+const { protect } = require("../middlewares/authMiddleware");
+
 router.get("/plan", protect, getOrCreateStudyPlan);
 
-// Topics
-router.post("/topic", protect, addTopic);
-router.get("/topics/:planId", protect, getTopicProgress); // Matches frontend getStudyTopics
-
-// Tasks
-router.post("/task", protect, addTask);
+router.get("/tasks", protect, getTasks);
 router.get("/tasks/today", protect, getTodayTasks);
-router.patch("/tasks/:id/toggle", protect, toggleTask); // Matches frontend toggleTask path
+router.post("/tasks", protect, addTask);
+router.patch("/tasks/:id/toggle", protect, toggleTask);
+router.delete("/tasks/:id", protect, deleteTask);
+
+router.post("/generate-ai", protect, generateAIRecommendations);
+router.get("/progress", protect, getTopicProgress);
 
 module.exports = router;

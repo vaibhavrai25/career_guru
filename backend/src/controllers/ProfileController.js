@@ -1,149 +1,383 @@
-const Profile = require('../models/Profile');
-const CodingProfile = require('../models/CodingProfile');
-const axios = require('axios');
+const axios = require("axios");
+const Profile = require("../models/Profile");
+const CodingProfile = require("../models/CodingProfile");
 
-// Helper: Platform handle validate karne aur Avatar nikalne ke liye
+const toPlainObject = (value) => {
+  if (!value) return {};
+
+  if (value instanceof Map) {
+    return Object.fromEntries(value);
+  }
+
+  if (typeof value.toObject === "function") {
+    return value.toObject();
+  }
+
+  if (typeof value === "object") {
+    return value;
+  }
+
+  return {};
+};
+
+const mergeTopics = (...topicObjects) => {
+  const merged = {};
+
+  topicObjects.forEach((topics) => {
+    const plainTopics = toPlainObject(topics);
+
+    Object.entries(plainTopics).forEach(([tag, count]) => {
+      const key = String(tag || "").toLowerCase().trim();
+      if (!key) return;
+
+      merged[key] = (merged[key] || 0) + Number(count || 0);
+    });
+  });
+
+  return merged;
+};
+
 const validateAndFetchAvatar = async (platform, handle) => {
-  if (!handle) return null;
+  if (!platform || !handle) return null;
+
+  const cleanHandle = handle.trim();
+
   try {
-    if (platform === 'github') {
-      const res = await axios.get(`https://api.github.com/users/${handle.trim()}`);
-      return res.data.avatar_url; 
-    }
-    
-    if (platform === 'leetcode') {
-      const query = JSON.stringify({
-        query: `query userPublicProfile($username: String!) {
-          matchedUser(username: $username) { profile { userAvatar } }
-        }`,
-        variables: { username: handle.trim() }
+    if (platform === "github") {
+      const res = await axios.get(`https://api.github.com/users/${cleanHandle}`, {
+        timeout: 10000,
       });
+
+      return res.data.avatar_url || null;
+    }
+
+    if (platform === "leetcode") {
+      const query = {
+        query: `
+          query userPublicProfile($username: String!) {
+            matchedUser(username: $username) {
+              profile {
+                userAvatar
+              }
+            }
+          }
+        `,
+        variables: {
+          username: cleanHandle,
+        },
+      };
+
       const res = await axios.post("https://leetcode.com/graphql", query, {
-        headers: { 'Content-Type': 'application/json' }
+        headers: {
+          "Content-Type": "application/json",
+        },
+        timeout: 10000,
       });
-      return res.data.data.matchedUser?.profile?.userAvatar;
+
+      return res.data?.data?.matchedUser?.profile?.userAvatar || null;
     }
 
-    if (platform === 'codeforces') {
-      const res = await axios.get(`https://codeforces.com/api/user.info?handles=${handle.trim()}`);
-      return res.data.result?.[0]?.titlePhoto || null; 
+    if (platform === "codeforces") {
+      const res = await axios.get(
+        `https://codeforces.com/api/user.info?handles=${cleanHandle}`,
+        { timeout: 10000 }
+      );
+
+      return res.data?.result?.[0]?.titlePhoto || null;
     }
 
-    if (platform === 'codechef') {
-      // Using the same mirror API we used for syncing
-      const res = await axios.get(`https://codechef-api-five.vercel.app/${handle.trim()}`);
-      if (res.data && res.data.success !== false) {
-        return res.data.profile || null; // API provides profile pic URL
+    if (platform === "codechef") {
+      try {
+        const res = await axios.get(`https://codechef-api.vercel.app/${cleanHandle}`, {
+          timeout: 10000,
+        });
+
+        if (res.data && res.data.status !== "Failed" && res.data.success !== false) {
+          return res.data.profile || res.data.profileImage || null;
+        }
+      } catch (error) {
+        const fallback = await axios.get(
+          `https://codechef-api-five.vercel.app/${cleanHandle}`,
+          { timeout: 10000 }
+        );
+
+        if (
+          fallback.data &&
+          fallback.data.status !== "Failed" &&
+          fallback.data.success !== false
+        ) {
+          return fallback.data.profile || fallback.data.profileImage || null;
+        }
       }
-      throw new Error("Profile not found on CodeChef");
     }
-  } catch (err) {
-    console.error(`Validation failed for ${platform}:`, err.message);
-    throw new Error(`Invalid ${platform} handle: ${handle}`);
+
+    return null;
+  } catch (error) {
+    console.error(`Validation failed for ${platform}:`, error.message);
+    return null;
   }
 };
 
-// --- 1. Create or Update Profile ---
 exports.upsertProfile = async (req, res) => {
   try {
-    const { 
-      name, username, bio, skills, isPublic,
-      codeforcesHandle, leetcodeHandle, githubHandle, codechefHandle 
+    const {
+      name,
+      username,
+      bio,
+      skills,
+      isPublic,
+      codeforcesHandle,
+      leetcodeHandle,
+      githubHandle,
+      codechefHandle,
+      linkedinUrl,
     } = req.body;
 
-    // 1. Check if username is taken
-    if (username) {
-      const existing = await Profile.findOne({ 
-        username: username.toLowerCase().trim(), 
-        userId: { $ne: req.user._id } 
+    const normalizedUsername = username ? username.toLowerCase().trim() : "";
+
+    if (normalizedUsername) {
+      const existing = await Profile.findOne({
+        username: normalizedUsername,
+        userId: { $ne: req.user._id },
       });
-      if (existing) return res.status(400).json({ message: "Username already taken" });
+
+      if (existing) {
+        return res.status(400).json({
+          message: "Username already taken",
+        });
+      }
     }
 
-    // 2. Avatar Sync Strategy (GitHub > LeetCode > CodeChef)
     let avatarUrl = "";
-    try {
-      avatarUrl = await validateAndFetchAvatar('github', githubHandle) || 
-                  await validateAndFetchAvatar('leetcode', leetcodeHandle) ||
-                  await validateAndFetchAvatar('codechef', codechefHandle);
-    } catch (vError) {
-      // Agar handle invalid hai toh yahi se error bhej denge
-      return res.status(400).json({ message: vError.message });
+
+    const platformsForAvatar = [
+      { platform: "github", handle: githubHandle },
+      { platform: "leetcode", handle: leetcodeHandle },
+      { platform: "codeforces", handle: codeforcesHandle },
+      { platform: "codechef", handle: codechefHandle },
+    ];
+
+    for (const item of platformsForAvatar) {
+      if (item.handle) {
+        avatarUrl = await validateAndFetchAvatar(item.platform, item.handle);
+        if (avatarUrl) break;
+      }
     }
+
+    const normalizedSkills = Array.isArray(skills)
+      ? skills.map((skill) => String(skill).trim()).filter(Boolean)
+      : skills
+      ? String(skills)
+          .split(",")
+          .map((skill) => skill.trim())
+          .filter(Boolean)
+      : [];
 
     const updateData = {
       userId: req.user._id,
-      name, 
-      username: username?.toLowerCase().trim(), 
-      bio, 
-      skills: Array.isArray(skills) ? skills : skills?.split(',').map(s => s.trim()),
-      isPublic: Boolean(isPublic),
-      codeforcesHandle, 
-      leetcodeHandle, 
-      githubHandle, 
-      codechefHandle,
+      name: name?.trim() || normalizedUsername || req.user.name || "",
+      username: normalizedUsername || undefined,
+      bio: bio || "Coding enthusiast",
+      skills: normalizedSkills,
+      isPublic: isPublic !== undefined ? Boolean(isPublic) : false,
+      codeforcesHandle: codeforcesHandle?.trim() || "",
+      leetcodeHandle: leetcodeHandle?.trim() || "",
+      githubHandle: githubHandle?.trim() || "",
+      codechefHandle: codechefHandle?.trim() || "",
+      linkedinUrl: linkedinUrl?.trim() || "",
     };
 
-    if (avatarUrl) updateData.avatar = avatarUrl;
+    if (avatarUrl) {
+      updateData.avatar = avatarUrl;
+    }
 
     const profile = await Profile.findOneAndUpdate(
       { userId: req.user._id },
       updateData,
-      { new: true, upsert: true, runValidators: true }
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      }
     );
 
-    // 3. Update CodingProfile status to 'Linked'
-    const platforms = ['leetcode', 'codeforces', 'codechef'];
-    let codingProfile = await CodingProfile.findOne({ userId: req.user._id });
-    
-    if (!codingProfile) {
-      codingProfile = new CodingProfile({ userId: req.user._id });
-    }
-
-    platforms.forEach(p => {
-      const handle = req.body[`${p}Handle`];
-      if (handle) {
-        // Sirf tab update karo jab handle naya ho ya Linked na ho
-        if (!codingProfile[p] || codingProfile[p].handle !== handle) {
-          codingProfile[p] = { 
-            ...codingProfile[p], 
-            handle: handle.trim(), 
-            status: 'Linked' 
-          };
-        }
-      }
+    return res.status(200).json({
+      message: "Profile saved successfully. You can now sync coding stats.",
+      profile,
     });
-
-    await codingProfile.save();
-
-    res.json({ message: "Profile & Handles Updated Successfully", profile });
   } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+    console.error("Profile Upsert Error:", error.message);
 
-// --- 2. Real-time Handle Validation Endpoint ---
-exports.validateHandle = async (req, res) => {
-  const { platform, handle } = req.query;
-  try {
-    const avatar = await validateAndFetchAvatar(platform, handle);
-    res.json({ 
-      valid: true, 
-      message: `${platform} handle is valid!`,
-      avatar: avatar 
+    return res.status(500).json({
+      message: "Failed to save profile",
+      error: error.message,
     });
-  } catch (err) {
-    res.status(400).json({ valid: false, message: err.message });
   }
 };
 
-// --- 3. Get Profile ---
 exports.getProfile = async (req, res) => {
   try {
     const profile = await Profile.findOne({ userId: req.user._id });
-    if (!profile) return res.status(404).json({ message: "Profile not found" });
-    res.json(profile);
+
+    if (!profile) {
+      return res.status(404).json({
+        message: "Profile not found",
+      });
+    }
+
+    return res.status(200).json(profile);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error("Get Profile Error:", error.message);
+
+    return res.status(500).json({
+      message: "Failed to fetch profile",
+      error: error.message,
+    });
+  }
+};
+
+exports.validateHandle = async (req, res) => {
+  try {
+    const { platform, handle } = req.query;
+
+    if (!platform || !handle) {
+      return res.status(400).json({
+        valid: false,
+        message: "Platform and handle are required",
+      });
+    }
+
+    const cleanPlatform = platform.toLowerCase().trim();
+    const cleanHandle = handle.trim();
+
+    if (cleanPlatform === "username") {
+      const normalizedUsername = cleanHandle.toLowerCase();
+
+      const existing = await Profile.findOne({
+        username: normalizedUsername,
+      });
+
+      const isOwner =
+        req.user &&
+        existing &&
+        existing.userId.toString() === req.user._id.toString();
+
+      if (!existing || isOwner) {
+        return res.status(200).json({
+          valid: true,
+          message: "Username available",
+        });
+      }
+
+      return res.status(400).json({
+        valid: false,
+        message: "Username already taken",
+      });
+    }
+
+    const supportedPlatforms = ["github", "leetcode", "codeforces", "codechef"];
+
+    if (!supportedPlatforms.includes(cleanPlatform)) {
+      return res.status(400).json({
+        valid: false,
+        message: "Unsupported platform",
+      });
+    }
+
+    const avatar = await validateAndFetchAvatar(cleanPlatform, cleanHandle);
+
+    if (avatar) {
+      return res.status(200).json({
+        valid: true,
+        avatar,
+      });
+    }
+
+    return res.status(400).json({
+      valid: false,
+      message: "Handle not found or platform unavailable",
+    });
+  } catch (error) {
+    console.error("Handle Validation Error:", error.message);
+
+    return res.status(400).json({
+      valid: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.getPublicProfileData = async (req, res) => {
+  try {
+    const { username } = req.params;
+
+    const profile = await Profile.findOne({
+      username: username.toLowerCase().trim(),
+      isPublic: true,
+    });
+
+    if (!profile) {
+      return res.status(404).json({
+        message: "Public profile not found",
+      });
+    }
+
+    const coding = await CodingProfile.findOne({ userId: profile.userId });
+
+    const combinedTopics = mergeTopics(
+      coding?.codeforces?.topicWise,
+      coding?.leetcode?.topicWise,
+      coding?.codechef?.topicWise
+    );
+
+    const totalSolved =
+      Number(coding?.codeforces?.totalSolved || 0) +
+      Number(coding?.leetcode?.totalSolved || 0) +
+      Number(coding?.codechef?.totalSolved || 0);
+
+    return res.status(200).json({
+      personal: {
+        name: profile.name,
+        username: profile.username,
+        bio: profile.bio,
+        avatar: profile.avatar,
+        skills: profile.skills || [],
+        github: profile.githubHandle,
+        linkedin: profile.linkedinUrl,
+        resumeUrl: profile.resumeUrl,
+      },
+      stats: {
+        totalSolved,
+        topics: combinedTopics,
+        difficulty: {
+          easy:
+            Number(coding?.codeforces?.easy || 0) +
+            Number(coding?.leetcode?.easy || 0) +
+            Number(coding?.codechef?.easy || 0),
+          medium:
+            Number(coding?.codeforces?.medium || 0) +
+            Number(coding?.leetcode?.medium || 0) +
+            Number(coding?.codechef?.medium || 0),
+          hard:
+            Number(coding?.codeforces?.hard || 0) +
+            Number(coding?.leetcode?.hard || 0) +
+            Number(coding?.codechef?.hard || 0),
+        },
+        platforms: {
+          leetcode: coding?.leetcode || {},
+          codeforces: coding?.codeforces || {},
+          codechef: coding?.codechef || {},
+          github: coding?.github || {},
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Public Profile Error:", error.message);
+
+    return res.status(500).json({
+      message: "Failed to fetch public profile",
+      error: error.message,
+    });
   }
 };

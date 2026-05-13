@@ -1,65 +1,118 @@
 import { useState, useContext } from "react";
 import { loginUser } from "../api/auth";
 import { AuthContext } from "../context/AuthContext";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 
 const Login = () => {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const redirectPath = location.state?.from?.pathname || "/";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setLoading(true);
+
     try {
-      // API call returns { token, user }
-      const response = await loginUser(form);
-      login(response.user, response.token); 
-      navigate("/");
+      const response = await loginUser({
+        email: form.email.trim(),
+        password: form.password,
+      });
+
+      if (!response?.token || !response?.user) {
+        throw new Error("Invalid login response from server");
+      }
+
+      login(response.user, response.token);
+      navigate(redirectPath, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid credentials. Please try again.");
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          "Invalid credentials. Please try again."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors">
-      <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg w-96 border dark:border-gray-700">
-        <h2 className="text-3xl font-bold mb-6 text-blue-600 dark:text-blue-400">Login</h2>
-        
-        {error && <p className="text-red-500 text-sm mb-4 bg-red-50 dark:bg-red-900/20 p-2 rounded">{error}</p>}
+    <div className="min-h-screen flex items-center justify-center bg-gray-950 transition-colors px-4">
+      <div className="bg-gray-900 p-8 rounded-[2rem] shadow-2xl w-full max-w-md border border-gray-800 relative overflow-hidden">
+        <div className="absolute -top-12 -right-12 h-40 w-40 bg-blue-600/10 rounded-full blur-3xl" />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1 dark:text-gray-300">Email Address</label>
-            <input
-              type="email"
-              required
-              className="w-full p-2 rounded border dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-            />
-          </div>
+        <div className="relative z-10">
+          <h2 className="text-4xl font-black mb-2 text-white italic">
+            LOGIN <span className="text-blue-500">CENTER</span>
+          </h2>
+          <p className="text-gray-500 text-sm mb-8 font-medium">
+            Continue your coding intelligence workflow.
+          </p>
 
-          <div>
-            <label className="block text-sm font-medium mb-1 dark:text-gray-300">Password</label>
-            <input
-              type="password"
-              required
-              className="w-full p-2 rounded border dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-            />
-          </div>
+          {error && (
+            <p className="text-red-400 text-sm mb-4 bg-red-500/10 border border-red-500/20 p-3 rounded-xl">
+              {error}
+            </p>
+          )}
 
-          <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition-colors">
-            Sign In
-          </button>
-        </form>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                className="w-full p-3 rounded-xl bg-gray-950 border border-gray-800 text-white outline-none focus:border-blue-500 transition-all"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="you@example.com"
+              />
+            </div>
 
-        <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-          Don't have an account? <Link to="/register" className="text-blue-500 hover:underline">Register here</Link>
-        </p>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                className="w-full p-3 rounded-xl bg-gray-950 border border-gray-800 text-white outline-none focus:border-blue-500 transition-all"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className={`w-full text-white font-black py-4 rounded-2xl transition-all shadow-lg ${
+                loading
+                  ? "bg-gray-700 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-500 shadow-blue-900/20 active:scale-95"
+              }`}
+            >
+              {loading ? "SIGNING IN..." : "SIGN IN"}
+            </button>
+          </form>
+
+          <p className="mt-8 text-center text-sm text-gray-400 font-medium">
+            Do not have an account?{" "}
+            <Link
+              to="/register"
+              className="text-blue-500 font-bold hover:underline ml-1"
+            >
+              Register here
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

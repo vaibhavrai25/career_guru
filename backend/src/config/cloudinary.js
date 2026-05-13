@@ -1,8 +1,17 @@
-const cloudinary = require('cloudinary').v2;
+const cloudinary = require("cloudinary").v2;
 
-// Validation check to ensure API keys are present before configuring
-if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-  console.error("❌ Cloudinary Error: Missing environment variables. Check your .env file.");
+const requiredEnvVars = [
+  "CLOUDINARY_CLOUD_NAME",
+  "CLOUDINARY_API_KEY",
+  "CLOUDINARY_API_SECRET",
+];
+
+const missingVars = requiredEnvVars.filter((key) => !process.env[key]);
+
+if (missingVars.length > 0) {
+  console.error(
+    `Cloudinary Error: Missing environment variables: ${missingVars.join(", ")}`
+  );
 }
 
 cloudinary.config({

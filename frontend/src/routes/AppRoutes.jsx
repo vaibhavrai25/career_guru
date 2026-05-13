@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 
@@ -7,44 +7,126 @@ import Dashboard from "../pages/Dashboard";
 import CodingStats from "../pages/CodingStats";
 import StudyPlan from "../pages/StudyPlan";
 import Resume from "../pages/Resume";
-import Profile from "../pages/Profile"; // Import Profile Settings
-import PublicPortfolio from "../pages/PublicPortfolio"; // Import Public Page
+import Profile from "../pages/Profile";
+import PublicPortfolio from "../pages/PublicPortfolio";
 import Login from "../pages/Login";
 import Register from "../pages/Register";
+import Onboarding from "../pages/Onboarding";
+
+const FullScreenLoader = () => {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-12 w-12 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+        <p className="text-sm text-gray-400">Loading command center...</p>
+      </div>
+    </div>
+  );
+};
 
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useContext(AuthContext);
+  const { isAuthenticated, loading } = useContext(AuthContext);
+  const location = useLocation();
 
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
+  if (loading) return <FullScreenLoader />;
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  return user ? children : <Navigate to="/login" />;
+  return children;
+};
+
+const PublicOnlyRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useContext(AuthContext);
+
+  if (loading) return <FullScreenLoader />;
+
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
 };
 
 const AppRoutes = () => {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route
+        path="/login"
+        element={
+          <PublicOnlyRoute>
+            <Login />
+          </PublicOnlyRoute>
+        }
+      />
 
-      {/* Protected Private Routes */}
-      <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/coding" element={<ProtectedRoute><CodingStats /></ProtectedRoute>} />
-      <Route path="/study" element={<ProtectedRoute><StudyPlan /></ProtectedRoute>} />
-      <Route path="/resume" element={<ProtectedRoute><Resume /></ProtectedRoute>} />
-      
-      {/* Settings Route - Now Connected! */}
-      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route
+        path="/register"
+        element={
+          <PublicOnlyRoute>
+            <Register />
+          </PublicOnlyRoute>
+        }
+      />
 
-      {/* Public Routes - No Protection Needed */}
+      <Route
+        path="/onboarding"
+        element={
+          <ProtectedRoute>
+            <Onboarding />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/coding"
+        element={
+          <ProtectedRoute>
+            <CodingStats />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/study"
+        element={
+          <ProtectedRoute>
+            <StudyPlan />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/resume"
+        element={
+          <ProtectedRoute>
+            <Resume />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        }
+      />
+
       <Route path="/u/:username" element={<PublicPortfolio />} />
 
-      <Route path="*" element={<Navigate to="/" />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

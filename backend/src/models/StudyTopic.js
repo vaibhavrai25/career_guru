@@ -6,13 +6,36 @@ const studyTopicSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "StudyPlan",
       required: true,
+      index: true,
     },
+
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+    },
+
     name: {
-      type: String, // e.g., DSA, OS, DBMS
+      type: String,
       required: true,
+      trim: true,
     },
-    totalTasks: { type: Number, default: 0 },
-    completedTasks: { type: Number, default: 0 },
+
+    category: {
+      type: String,
+      enum: ["dsa", "development", "core"],
+      default: "dsa",
+    },
+
+    totalTasks: {
+      type: Number,
+      default: 0,
+    },
+
+    completedTasks: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

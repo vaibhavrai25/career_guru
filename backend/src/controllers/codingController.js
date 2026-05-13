@@ -1,59 +1,102 @@
-const axios = require('axios');
-const CodingProfile = require('../models/CodingProfile');
+const axios = require("axios");
+const CodingProfile = require("../models/CodingProfile");
 
 exports.fetchCodingStats = async (req, res) => {
   try {
     const { leetcode, codeforces, github } = req.body;
-    let lcData = {}, cfData = {}, ghData = {};
 
-    // 🔹 LeetCode - Wrap in try-catch to prevent total failure if one API is down
-    try {
-      const lcRes = await axios.get(`https://leetcode-stats-api.herokuapp.com/${leetcode}`);
-      lcData = {
-        handle: leetcode,
-        totalSolved: lcRes.data.totalSolved || 0,
-        easy: lcRes.data.easySolved || 0,
-        medium: lcRes.data.mediumSolved || 0,
-        hard: lcRes.data.hardSolved || 0,
-      };
-    } catch (e) { console.error("LeetCode fetch failed"); }
+    if (!leetcode && !codeforces && !github) {
+      return res.status(400).json({
+        message: "At least one coding handle is required",
+      });
+    }
 
-    // 🔹 Codeforces
-    try {
-      const cfRes = await axios.get(`https://codeforces.com/api/user.info?handles=${codeforces}`);
-      const cf = cfRes.data.result[0];
-      cfData = {
-        handle: codeforces,
-        rating: cf.rating || 0,
-        maxRating: cf.maxRating || 0,
-        rank: cf.rank || "unrated",
-      };
-    } catch (e) { console.error("Codeforces fetch failed"); }
+    const lcData = {};
+    const cfData = {};
+    const ghData = {};
 
-    // 🔹 GitHub
-    try {
-      const ghRes = await axios.get(`https://api.github.com/users/${github}`);
-      ghData = {
-        handle: github,
-        publicRepos: ghRes.data.public_repos || 0,
-        followers: ghRes.data.followers || 0,
-      };
-    } catch (e) { console.error("GitHub fetch failed"); }
+    if (leetcode) {
+      try {
+        const lcRes = await axios.get(
+          `https://leetcode-stats-api.herokuapp.com/${leetcode.trim()}`
+        );
+
+        Object.assign(lcData, {
+          handle: leetcode.trim(),
+          totalSolved: lcRes.data.totalSolved || 0,
+          easy: lcRes.data.easySolved || 0,
+          medium: lcRes.data.mediumSolved || 0,
+          hard: lcRes.data.hardSolved || 0,
+        });
+      } catch (error) {
+        console.error("LeetCode fetch failed:", error.message);
+      }
+    }
+
+    if (codeforces) {
+      try {
+        const cfRes = await axios.get(
+          `https://codeforces.com/api/user.info?handles=${codeforces.trim()}`
+        );
+
+        const cf = cfRes.data.result?.[0];
+
+        if (cf) {
+          Object.assign(cfData, {
+            handle: codeforces.trim(),
+            rating: cf.rating || 0,
+            maxRating: cf.maxRating || 0,
+            rank: cf.rank || "unrated",
+          });
+        }
+      } catch (error) {
+        console.error("Codeforces fetch failed:", error.message);
+      }
+    }
+
+    if (github) {
+      try {
+        const ghRes = await axios.get(
+          `https://api.github.com/users/${github.trim()}`
+        );
+
+        Object.assign(ghData, {
+          handle: github.trim(),
+          publicRepos: ghRes.data.public_repos || 0,
+          followers: ghRes.data.followers || 0,
+        });
+      } catch (error) {
+        console.error("GitHub fetch failed:", error.message);
+      }
+    }
+
+    const updateData = {
+      userId: req.user._id,
+      lastSynced: new Date(),
+    };
+
+    if (leetcode) updateData.leetcode = lcData;
+    if (codeforces) updateData.codeforces = cfData;
+    if (github) updateData.github = ghData;
 
     const updatedProfile = await CodingProfile.findOneAndUpdate(
       { userId: req.user._id },
+      updateData,
       {
-        userId: req.user._id,
-        leetcode: lcData,
-        codeforces: cfData,
-        github: ghData,
-        lastSynced: new Date()
-      },
-      { upsert: true, new: true }
+        upsert: true,
+        new: true,
+        runValidators: true,
+      }
     );
 
-    res.json({ message: 'Coding stats fetched successfully', data: updatedProfile });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(200).json({
+      message: "Coding stats fetched successfully",
+      data: updatedProfile,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to fetch coding stats",
+      error: error.message,
+    });
   }
 };

@@ -1,29 +1,47 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { protect } = require('../middlewares/authMiddleware');
-const { 
-  syncCodeforces, 
-  syncLeetCode, 
-  syncCodechef, // Placeholder for CodeChef logic
-  getOverviewStats, 
-  getConsistencyStats, 
-  getTopicStrength, 
-  getHeatmapDates,
+
+const {
+  syncLeetCode,
+  syncCodeforces,
+  syncCodechef,
+  syncGitHub,
+  syncAllPlatforms,
   getDashboardSummary,
-  buildSolvedHistory
-} = require('../controllers/statsController');
+  getGitHubRepos,
+  buildSolvedHistory,
+} = require("../controllers/statsController");
 
-// Syncing Platforms
-router.get('/sync/codeforces', protect, syncCodeforces);
-router.get('/sync/leetcode', protect, syncLeetCode);
-router.get('/sync/codechef', protect, syncCodechef); // Added CodeChef Sync
+const {
+  getSubmissions,
+  getContestHistory,
+  getUpcomingContests,
+  getDeepGitHubRepos,
+  getAnalyticsSnapshots,
+} = require("../controllers/statsReadController");
 
-// Analytics Endpoints
-router.get('/overview', protect, getOverviewStats);
-router.get('/consistency', protect, getConsistencyStats);
-router.get('/topic-strength', protect, getTopicStrength);
-router.get('/heatmap-dates', protect, getHeatmapDates);
-router.get('/summary', protect, getDashboardSummary);
-router.get('/build-history', protect, buildSolvedHistory);
+const { protect } = require("../middlewares/authMiddleware");
+
+router.get("/dashboard", protect, getDashboardSummary);
+
+router.get("/sync/all", protect, syncAllPlatforms);
+router.get("/sync/leetcode", protect, syncLeetCode);
+router.get("/sync/codeforces", protect, syncCodeforces);
+router.get("/sync/codechef", protect, syncCodechef);
+router.get("/sync/github", protect, syncGitHub);
+
+router.get("/submissions", protect, getSubmissions);
+
+router.get("/contests/history", protect, getContestHistory);
+router.get("/contests/upcoming", protect, getUpcomingContests);
+
+router.get("/github/deep-repos", protect, getDeepGitHubRepos);
+router.get("/analytics/snapshots", protect, getAnalyticsSnapshots);
+
+router.get("/github/repos", protect, getGitHubRepos);
+router.get("/solved-history/build", protect, buildSolvedHistory);
+
+router.get("/github-repos", protect, getGitHubRepos);
+router.get("/build-history", protect, buildSolvedHistory);
 
 module.exports = router;
