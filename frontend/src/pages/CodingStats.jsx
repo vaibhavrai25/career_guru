@@ -38,6 +38,8 @@ import {
   RefreshCw,
   Loader2,
   AlertTriangle,
+  Info,
+  Trophy,
 } from "lucide-react";
 
 const CompactStat = ({ title, value, subtitle, icon: Icon }) => (
@@ -62,6 +64,145 @@ const CompactStat = ({ title, value, subtitle, icon: Icon }) => (
     )}
   </div>
 );
+
+const PlatformOverviewCard = ({ platform }) => {
+  const totalDifficulty =
+    Number(platform.easy || 0) + Number(platform.medium || 0) + Number(platform.hard || 0);
+
+  const easyPct = totalDifficulty
+    ? Math.round((Number(platform.easy || 0) / totalDifficulty) * 100)
+    : 0;
+  const mediumPct = totalDifficulty
+    ? Math.round((Number(platform.medium || 0) / totalDifficulty) * 100)
+    : 0;
+  const hardPct = totalDifficulty
+    ? Math.round((Number(platform.hard || 0) / totalDifficulty) * 100)
+    : 0;
+
+  return (
+    <div className="bg-zinc-900/40 border border-white/[0.04] rounded-2xl p-5 shadow-xl">
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-[0.35em] text-blue-500">
+            {platform.label}
+          </p>
+          <h3 className="text-3xl font-black text-white italic tracking-tighter mt-1">
+            {platform.totalSolved || 0}
+          </h3>
+          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">
+            Questions Solved
+          </p>
+        </div>
+
+        <div
+          className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
+            platform.status === "Linked"
+              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+              : platform.status === "Error"
+              ? "bg-red-500/10 text-red-400 border border-red-500/20"
+              : "bg-zinc-800 text-zinc-500 border border-white/5"
+          }`}
+        >
+          {platform.status || "Pending"}
+        </div>
+      </div>
+
+      <div className="space-y-3 mb-5">
+        <div>
+          <div className="flex justify-between mb-1">
+            <span className="text-[8px] text-emerald-400 font-black uppercase">
+              Easy {platform.easy || 0}
+            </span>
+            <span className="text-[8px] text-zinc-600">{easyPct}%</span>
+          </div>
+          <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="h-full bg-emerald-500" style={{ width: `${easyPct}%` }} />
+          </div>
+        </div>
+
+        <div>
+          <div className="flex justify-between mb-1">
+            <span className="text-[8px] text-yellow-400 font-black uppercase">
+              Medium {platform.medium || 0}
+            </span>
+            <span className="text-[8px] text-zinc-600">{mediumPct}%</span>
+          </div>
+          <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="h-full bg-yellow-500" style={{ width: `${mediumPct}%` }} />
+          </div>
+        </div>
+
+        <div>
+          <div className="flex justify-between mb-1">
+            <span className="text-[8px] text-red-400 font-black uppercase">
+              Hard {platform.hard || 0}
+            </span>
+            <span className="text-[8px] text-zinc-600">{hardPct}%</span>
+          </div>
+          <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="h-full bg-red-500" style={{ width: `${hardPct}%` }} />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/[0.03]">
+        <div>
+          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">
+            Current Rating
+          </p>
+          <p className="text-sm text-white font-black italic">
+            {platform.currentRating || 0}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">
+            Max Rating
+          </p>
+          <p className="text-sm text-white font-black italic">
+            {platform.maxRating || 0}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">
+            Contests
+          </p>
+          <p className="text-sm text-white font-black italic">
+            {platform.contests || 0}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">
+            Upcoming
+          </p>
+          <p className="text-sm text-white font-black italic">
+            {platform.upcomingContests || 0}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">
+            Current Streak
+          </p>
+          <p className="text-sm text-white font-black italic">
+            {platform.currentStreak || 0}d
+          </p>
+        </div>
+
+        <div>
+          <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">
+            Max Streak
+          </p>
+          <p className="text-sm text-white font-black italic">
+            {platform.maxStreak || 0}d
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const RepoCard = ({ repo }) => {
   const url = repo.url || repo.html_url || "";
@@ -148,6 +289,43 @@ const buildRatingChartData = (history = []) =>
     rating: item.rating || item.newRating || 0,
   }));
 
+const calculateStreakFromDates = (dates) => {
+  if (!Array.isArray(dates) || dates.length === 0) return 0;
+
+  const sortedDesc = [...new Set(dates)]
+    .filter(Boolean)
+    .sort((a, b) => new Date(b) - new Date(a));
+
+  const today = new Date().toISOString().split("T")[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+
+  if (sortedDesc[0] !== today && sortedDesc[0] !== yesterday) return 0;
+
+  let streak = 0;
+  let expectedDate = new Date(sortedDesc[0]);
+
+  for (const dateString of sortedDesc) {
+    const currentDate = new Date(dateString);
+    const diff = Math.round((expectedDate - currentDate) / 86400000);
+
+    if (diff === 0 || diff === 1) {
+      streak += 1;
+      expectedDate = currentDate;
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+};
+
+const convertMapObject = (value) => {
+  if (!value) return {};
+  if (value instanceof Map) return Object.fromEntries(value);
+  if (typeof value === "object") return value;
+  return {};
+};
+
 const CodingStats = () => {
   const { user } = useContext(AuthContext);
 
@@ -175,6 +353,9 @@ const CodingStats = () => {
         dashboardData,
         repoData,
         submissionData,
+        leetcodeSubmissionData,
+        codeforcesSubmissionData,
+        codechefSubmissionData,
         contestData,
         upcomingData,
         snapshotData,
@@ -183,15 +364,36 @@ const CodingStats = () => {
         getDeepGitHubRepos({ limit: 50, sort: "quality" }).catch(() => ({
           data: [],
         })),
-        getSubmissions({ limit: 500 }).catch(() => ({ data: [] })),
-        getContestHistory({ limit: 200 }).catch(() => ({ data: [] })),
-        getUpcomingContests({ limit: 50 }).catch(() => ({ data: [] })),
+        getSubmissions({ limit: 1000 }).catch(() => ({ data: [] })),
+        getSubmissions({ platform: "leetcode", limit: 1000 }).catch(() => ({
+          data: [],
+        })),
+        getSubmissions({ platform: "codeforces", limit: 1000 }).catch(() => ({
+          data: [],
+        })),
+        getSubmissions({ platform: "codechef", limit: 1000 }).catch(() => ({
+          data: [],
+        })),
+        getContestHistory({ limit: 300 }).catch(() => ({ data: [] })),
+        getUpcomingContests({ limit: 100 }).catch(() => ({ data: [] })),
         getAnalyticsSnapshots({ limit: 100 }).catch(() => ({ data: [] })),
       ]);
 
+      const mergedSubmissionsMap = new Map();
+
+      [
+        ...(submissionData?.data || []),
+        ...(leetcodeSubmissionData?.data || []),
+        ...(codeforcesSubmissionData?.data || []),
+        ...(codechefSubmissionData?.data || []),
+      ].forEach((item) => {
+        const key = item._id || `${item.platform}-${item.submissionId}-${item.date}`;
+        mergedSubmissionsMap.set(key, item);
+      });
+
       setAllStats(dashboardData);
       setRepos(repoData?.data || []);
-      setSubmissions(submissionData?.data || []);
+      setSubmissions(Array.from(mergedSubmissionsMap.values()));
       setContestHistory(contestData?.data || []);
       setUpcomingContests(upcomingData?.data || []);
       setSnapshots(snapshotData?.data || []);
@@ -219,6 +421,7 @@ const CodingStats = () => {
 
   const handleSync = async () => {
     setSyncing(true);
+    setError("");
 
     try {
       await syncAllPlatforms();
@@ -235,32 +438,40 @@ const CodingStats = () => {
 
   const currentHeatDates = useMemo(() => {
     if (activeTab === "github") {
-      return repos
+      const repoDates = repos
         .map((repo) => repo.pushedAtGithub || repo.updatedAtGithub)
         .filter(Boolean)
         .map((date) => new Date(date).toISOString().split("T")[0]);
+
+      const githubDates = allStats?.platforms?.github?.contributionDates || [];
+
+      return [...new Set([...repoDates, ...githubDates])];
     }
 
     if (activeTab === "overall") {
-      return [
-        ...new Set(
-          submissions
-            .filter((item) => item.isAccepted)
-            .map((item) => item.date)
-            .filter(Boolean)
-        ),
+      const submissionDates = submissions
+        .filter((item) => item.isAccepted)
+        .map((item) => item.date)
+        .filter(Boolean);
+
+      const profileDates = [
+        ...(allStats?.platforms?.leetcode?.dates || []),
+        ...(allStats?.platforms?.codeforces?.dates || []),
+        ...(allStats?.platforms?.codechef?.dates || []),
       ];
+
+      return [...new Set([...submissionDates, ...profileDates])];
     }
 
-    return [
-      ...new Set(
-        submissions
-          .filter((item) => item.platform === activeTab && item.isAccepted)
-          .map((item) => item.date)
-          .filter(Boolean)
-      ),
-    ];
-  }, [activeTab, repos, submissions]);
+    const submissionDates = submissions
+      .filter((item) => item.platform === activeTab && item.isAccepted)
+      .map((item) => item.date)
+      .filter(Boolean);
+
+    const profileDates = currentPlatformData?.dates || [];
+
+    return [...new Set([...submissionDates, ...profileDates])];
+  }, [activeTab, repos, submissions, allStats, currentPlatformData]);
 
   const platformContestHistory = useMemo(() => {
     if (activeTab === "overall") return contestHistory;
@@ -269,15 +480,18 @@ const CodingStats = () => {
 
   const ratingChartData = useMemo(() => {
     if (activeTab === "overall") {
-      return snapshots.map((item) => ({
-        date: item.date,
-        readinessScore: item.readinessScore || 0,
-        totalSolved: item.totalSolved || 0,
+      const overview = allStats?.platformOverview || [];
+
+      return overview.map((item) => ({
+        platform: item.label,
+        currentRating: item.currentRating || 0,
+        maxRating: item.maxRating || 0,
+        contests: item.contests || 0,
       }));
     }
 
     return buildRatingChartData(currentPlatformData?.ratingHistory || []);
-  }, [activeTab, snapshots, currentPlatformData]);
+  }, [activeTab, snapshots, currentPlatformData, allStats]);
 
   const topicChartData = useMemo(() => {
     const topicWise =
@@ -286,16 +500,22 @@ const CodingStats = () => {
             acc[item.topic] = item.count || item.score || 0;
             return acc;
           }, {})
-        : currentPlatformData?.topicWise || {};
+        : convertMapObject(currentPlatformData?.topicWise);
 
     return Object.entries(topicWise || {})
       .map(([topic, count]) => ({
         topic,
         count: Number(count || 0),
       }))
+      .filter((item) => item.topic && item.count > 0)
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
   }, [activeTab, allStats, currentPlatformData]);
+
+  const platformUpcomingContests = useMemo(() => {
+    if (activeTab === "overall") return upcomingContests;
+    return upcomingContests.filter((item) => item.platform === activeTab);
+  }, [activeTab, upcomingContests]);
 
   const getDaysInMonth = (monthIdx, selectedYear) =>
     new Date(selectedYear, monthIdx + 1, 0).getDate();
@@ -315,6 +535,8 @@ const CodingStats = () => {
     );
   }
 
+  const derivedStreak = calculateStreakFromDates(currentHeatDates);
+
   const totalDisplay =
     activeTab === "github"
       ? repos.length
@@ -324,10 +546,22 @@ const CodingStats = () => {
 
   const streakDisplay =
     activeTab === "overall"
-      ? allStats.streak
+      ? allStats.streak || derivedStreak
+      : activeTab === "github"
+      ? allStats?.platforms?.github?.activeDays || derivedStreak
+      : currentPlatformData?.submissionsSummary?.currentStreak ||
+        currentPlatformData?.streak ||
+        derivedStreak ||
+        0;
+
+  const maxStreakDisplay =
+    activeTab === "overall"
+      ? allStats.maxStreak || 0
       : activeTab === "github"
       ? allStats?.platforms?.github?.activeDays || 0
-      : currentPlatformData?.streak || 0;
+      : currentPlatformData?.submissionsSummary?.maxStreak ||
+        currentPlatformData?.maxStreak ||
+        0;
 
   const ratingDisplay =
     activeTab === "github"
@@ -342,6 +576,14 @@ const CodingStats = () => {
       : activeTab === "overall"
       ? allStats?.analysis?.strongestTopic || "N/A"
       : currentPlatformData?.rank || "Novice";
+
+  const limitedDataNote =
+    activeTab !== "overall" && activeTab !== "github"
+      ? currentPlatformData?.submissionsSummary?.limitedData
+        ? currentPlatformData?.submissionsSummary?.note ||
+          "This platform has limited public submission data."
+        : ""
+      : "";
 
   return (
     <MainLayout>
@@ -396,6 +638,13 @@ const CodingStats = () => {
           </div>
         )}
 
+        {limitedDataNote && (
+          <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-4 text-sm text-yellow-300 flex items-center gap-2">
+            <Info size={16} />
+            {limitedDataNote}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <CompactStat
             title={activeTab === "github" ? "Repositories" : "Solved"}
@@ -404,24 +653,32 @@ const CodingStats = () => {
             subtitle="Total Units"
           />
           <CompactStat
-            title="Consistency"
+            title="Current Streak"
             value={`${streakDisplay || 0}d`}
             icon={TrendingUp}
-            subtitle="Current Streak"
+            subtitle="Active Chain"
           />
           <CompactStat
-            title={activeTab === "github" ? "Prod Ready" : "Proficiency"}
-            value={ratingDisplay}
+            title="Max Streak"
+            value={`${maxStreakDisplay || 0}d`}
+            icon={Trophy}
+            subtitle="Peak Chain"
+          />
+          <CompactStat
+            title={activeTab === "github" ? "Prod Ready" : "Rating/Rank"}
+            value={activeTab === "overall" ? rankDisplay : ratingDisplay}
             icon={Cpu}
-            subtitle="Neural Grade"
-          />
-          <CompactStat
-            title="Global Stand"
-            value={rankDisplay}
-            icon={Globe}
-            subtitle="Platform Rank"
+            subtitle={activeTab === "overall" ? "Strongest Area" : "Current Grade"}
           />
         </div>
+
+        {activeTab === "overall" && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {(allStats.platformOverview || []).map((platform) => (
+              <PlatformOverviewCard key={platform.platform} platform={platform} />
+            ))}
+          </div>
+        )}
 
         {activeTab === "github" ? (
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -442,59 +699,93 @@ const CodingStats = () => {
                 <div className="w-1 h-3 bg-blue-600 rounded-full" />
                 <h2 className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em]">
                   {activeTab === "overall"
-                    ? "Readiness Growth"
+                    ? "Platform Rating / Contest Matrix"
                     : "Trajectory Analysis"}
                 </h2>
               </div>
 
               <div className="h-[220px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={ratingChartData}>
-                    <defs>
-                      <linearGradient
-                        id="colorRating"
-                        x1="0"
-                        y1="0"
-                        x2="0"
-                        y2="1"
-                      >
-                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15} />
-                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
+                  {activeTab === "overall" ? (
+                    <BarChart data={ratingChartData}>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#18181b"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="platform"
+                        stroke="#52525b"
+                        fontSize={8}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        stroke="#3f3f46"
+                        fontSize={8}
+                        tickLine={false}
+                        axisLine={false}
+                        fontWeight="900"
+                        width={35}
+                      />
+                      <ChartTooltip
+                        contentStyle={{
+                          backgroundColor: "#09090b",
+                          border: "1px solid #18181b",
+                          borderRadius: "8px",
+                          fontSize: "10px",
+                        }}
+                      />
+                      <Bar dataKey="currentRating" fill="#2563eb" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="maxRating" fill="#7c3aed" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="contests" fill="#10b981" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  ) : (
+                    <AreaChart data={ratingChartData}>
+                      <defs>
+                        <linearGradient
+                          id="colorRating"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
 
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#18181b"
-                      vertical={false}
-                    />
-                    <XAxis dataKey="date" hide />
-                    <YAxis
-                      stroke="#3f3f46"
-                      fontSize={8}
-                      tickLine={false}
-                      axisLine={false}
-                      fontWeight="900"
-                      width={35}
-                    />
-                    <ChartTooltip
-                      contentStyle={{
-                        backgroundColor: "#09090b",
-                        border: "1px solid #18181b",
-                        borderRadius: "8px",
-                        fontSize: "10px",
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey={
-                        activeTab === "overall" ? "readinessScore" : "rating"
-                      }
-                      stroke="#2563eb"
-                      strokeWidth={2}
-                      fill="url(#colorRating)"
-                    />
-                  </AreaChart>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#18181b"
+                        vertical={false}
+                      />
+                      <XAxis dataKey="date" hide />
+                      <YAxis
+                        stroke="#3f3f46"
+                        fontSize={8}
+                        tickLine={false}
+                        axisLine={false}
+                        fontWeight="900"
+                        width={35}
+                      />
+                      <ChartTooltip
+                        contentStyle={{
+                          backgroundColor: "#09090b",
+                          border: "1px solid #18181b",
+                          borderRadius: "8px",
+                          fontSize: "10px",
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="rating"
+                        stroke="#2563eb"
+                        strokeWidth={2}
+                        fill="url(#colorRating)"
+                      />
+                    </AreaChart>
+                  )}
                 </ResponsiveContainer>
               </div>
             </div>
@@ -513,25 +804,33 @@ const CodingStats = () => {
                       activeTab === "overall"
                         ? submissions.length
                         : submissions.filter((s) => s.platform === activeTab).length,
-                    desc: "Raw telemetry stored",
+                    desc:
+                      activeTab === "codechef"
+                        ? "Limited public data"
+                        : "Raw telemetry stored",
                     icon: ShieldCheck,
                   },
                   {
-                    label: "Neural Max",
+                    label: "Current Rating",
                     val:
                       activeTab === "overall"
-                        ? allStats?.combined?.readinessScore || 0
-                        : currentPlatformData?.maxRating || 0,
-                    desc: "Peak recorded proficiency",
+                        ? "-"
+                        : currentPlatformData?.rating || 0,
+                    desc: "Platform current rating",
                     icon: BarChart3,
                   },
                   {
-                    label: "Upcoming",
+                    label: "Max Rating",
                     val:
                       activeTab === "overall"
-                        ? upcomingContests.length
-                        : upcomingContests.filter((c) => c.platform === activeTab)
-                            .length,
+                        ? "-"
+                        : currentPlatformData?.maxRating || 0,
+                    desc: "Peak recorded rating",
+                    icon: Trophy,
+                  },
+                  {
+                    label: "Upcoming",
+                    val: platformUpcomingContests.length,
                     desc: "Contest windows",
                     icon: Zap,
                   },
@@ -639,39 +938,47 @@ const CodingStats = () => {
                 Topic Distribution
               </h2>
 
-              <div className="h-[260px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topicChartData}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#18181b"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="topic"
-                      stroke="#52525b"
-                      fontSize={8}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      stroke="#52525b"
-                      fontSize={8}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <ChartTooltip
-                      contentStyle={{
-                        backgroundColor: "#09090b",
-                        border: "1px solid #18181b",
-                        borderRadius: "8px",
-                        fontSize: "10px",
-                      }}
-                    />
-                    <Bar dataKey="count" fill="#2563eb" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {topicChartData.length > 0 ? (
+                <div className="h-[260px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topicChartData}>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#18181b"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="topic"
+                        stroke="#52525b"
+                        fontSize={8}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        stroke="#52525b"
+                        fontSize={8}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <ChartTooltip
+                        contentStyle={{
+                          backgroundColor: "#09090b",
+                          border: "1px solid #18181b",
+                          borderRadius: "8px",
+                          fontSize: "10px",
+                        }}
+                      />
+                      <Bar dataKey="count" fill="#2563eb" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-[260px] flex items-center justify-center text-center">
+                  <p className="text-[10px] text-zinc-700 font-black uppercase tracking-[0.3em]">
+                    Topic data unavailable for this platform. Sync again or verify handle.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="lg:col-span-5 bg-zinc-900/30 rounded-3xl border border-white/[0.04] p-6 shadow-2xl">
@@ -680,40 +987,38 @@ const CodingStats = () => {
               </h2>
 
               <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
-                {(activeTab === "overall"
-                  ? upcomingContests
-                  : upcomingContests.filter((item) => item.platform === activeTab)
-                )
-                  .slice(0, 6)
-                  .map((contest) => (
-                    <a
-                      key={contest._id || contest.contestId}
-                      href={contest.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block p-3 rounded-xl bg-white/[0.01] border border-white/[0.03] hover:border-blue-500/30 transition-all"
-                    >
-                      <div className="flex justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] text-zinc-200 font-black uppercase truncate">
-                            {contest.title}
-                          </p>
-                          <p className="text-[8px] text-zinc-600 font-black uppercase mt-1">
-                            {contest.platform}
-                          </p>
-                        </div>
-                        <p className="text-[8px] text-blue-500 font-black whitespace-nowrap">
-                          {contest.startTime
-                            ? new Date(contest.startTime).toLocaleDateString()
-                            : "TBA"}
+                {platformUpcomingContests.slice(0, 8).map((contest) => (
+                  <a
+                    key={contest._id || `${contest.platform}-${contest.contestId}`}
+                    href={contest.url || "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block p-3 rounded-xl bg-white/[0.01] border border-white/[0.03] hover:border-blue-500/30 transition-all"
+                  >
+                    <div className="flex justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[10px] text-zinc-200 font-black uppercase truncate">
+                          {contest.title}
+                        </p>
+                        <p className="text-[8px] text-zinc-600 font-black uppercase mt-1">
+                          {contest.platform}
+                          {contest.isFallback ? " · estimated" : ""}
                         </p>
                       </div>
-                    </a>
-                  ))}
+                      <p className="text-[8px] text-blue-500 font-black whitespace-nowrap">
+                        {contest.startTime
+                          ? new Date(contest.startTime).toLocaleDateString()
+                          : "TBA"}
+                      </p>
+                    </div>
+                  </a>
+                ))}
 
-                {upcomingContests.length === 0 && (
-                  <p className="text-[10px] text-zinc-700 font-black uppercase tracking-widest">
-                    No upcoming contests cached. Sync platforms first.
+                {platformUpcomingContests.length === 0 && (
+                  <p className="text-[10px] text-zinc-700 font-black uppercase tracking-widest leading-relaxed">
+                    {activeTab === "codechef"
+                      ? "CodeChef upcoming contests depend on public contest API availability."
+                      : "No upcoming contests cached. Sync platforms first."}
                   </p>
                 )}
               </div>
@@ -736,9 +1041,8 @@ const CodingStats = () => {
               <span className="text-zinc-200 uppercase font-bold">
                 {activeTab}
               </span>{" "}
-              telemetry is now reading from normalized backend collections:
-              submissions, contest history, upcoming contests, GitHub repository
-              intelligence, and analytics snapshots.
+              telemetry reads from normalized backend collections. Heatmap uses
+              raw submissions first, then falls back to platform calendar dates.
             </p>
           </div>
 

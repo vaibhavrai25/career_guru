@@ -75,15 +75,33 @@ export const getAnalyticsSnapshots = async (params = {}) => {
 };
 
 /**
- * 4. STUDY PLAN & TASK MANAGEMENT
+ * 4. STUDY PLAN COMMAND CENTER
  */
 export const getStudyPlan = async () => {
   const res = await api.get("/study/plan");
   return res.data;
 };
 
-export const getTasks = async () => {
-  const res = await api.get("/study/tasks");
+export const getStudyCommandCenter = async () => {
+  const res = await api.get("/study/command-center");
+  return res.data;
+};
+
+export const getWeaknessIntelligence = async () => {
+  const res = await api.get("/study/weaknesses");
+  return res.data;
+};
+
+export const getTopicProgress = async () => {
+  const res = await api.get("/study/progress");
+  return res.data;
+};
+
+/**
+ * 5. STUDY TASK MANAGEMENT
+ */
+export const getTasks = async (params = {}) => {
+  const res = await api.get("/study/tasks", { params });
   return res.data;
 };
 
@@ -97,6 +115,11 @@ export const addTask = async (taskData) => {
   return res.data;
 };
 
+export const updateTask = async (taskId, taskData) => {
+  const res = await api.patch(`/study/tasks/${taskId}`, taskData);
+  return res.data;
+};
+
 export const toggleTask = async (taskId) => {
   const res = await api.patch(`/study/tasks/${taskId}/toggle`);
   return res.data;
@@ -107,21 +130,37 @@ export const deleteTask = async (taskId) => {
   return res.data;
 };
 
+export const rescheduleMissedTasks = async (payload = {}) => {
+  const res = await api.patch("/study/tasks/missed/reschedule", payload);
+  return res.data;
+};
+
 /**
- * 5. AI STUDY INTELLIGENCE
+ * 6. AI STUDY INTELLIGENCE
  */
-export const generateAIRecommendations = async (category) => {
-  const res = await api.post("/study/generate-ai", { category });
+export const generateAIRecommendations = async (payload = {}) => {
+  const body =
+    typeof payload === "string"
+      ? { category: payload }
+      : payload;
+
+  const res = await api.post("/study/generate-ai", body, {
+    timeout: 180000,
+  });
+
   return res.data;
 };
 
-export const getTopicProgress = async () => {
-  const res = await api.get("/study/progress");
+export const generateMissionPlan = async (payload = {}) => {
+  const res = await api.post("/study/generate-mission", payload, {
+    timeout: 180000,
+  });
+
   return res.data;
 };
 
 /**
- * 6. SMALL HELPERS FOR FRONTEND FILTERING
+ * 7. SMALL HELPERS FOR FRONTEND FILTERING
  */
 export const getPlatformSubmissions = async (platform, params = {}) => {
   return getSubmissions({ platform, ...params });

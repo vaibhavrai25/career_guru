@@ -37,27 +37,64 @@ const mergeTopics = (...topicObjects) => {
   return merged;
 };
 
-const validateAndFetchAvatar = async (platform, handle) => {
-  if (!platform || !handle) return null;
+const getLeetCodeHeaders = () => ({
+  "Content-Type": "application/json",
+  Referer: "https://leetcode.com",
+  Origin: "https://leetcode.com",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+});
 
+const validatePlatformHandle = async (platform, handle) => {
+  if (!platform || !handle) {
+    return {
+      valid: false,
+      avatar: "",
+      message: "Platform and handle are required",
+    };
+  }
+
+  const cleanPlatform = platform.toLowerCase().trim();
   const cleanHandle = handle.trim();
 
   try {
-    if (platform === "github") {
+    if (cleanPlatform === "github") {
       const res = await axios.get(`https://api.github.com/users/${cleanHandle}`, {
-        timeout: 10000,
+        timeout: 15000,
+        headers: {
+          Accept: "application/vnd.github+json",
+          "User-Agent": "Career-Guru-App",
+        },
       });
 
-      return res.data.avatar_url || null;
+      return {
+        valid: true,
+        avatar: res.data.avatar_url || "",
+        message: "GitHub handle found",
+        meta: {
+          username: res.data.login,
+          publicRepos: res.data.public_repos,
+          followers: res.data.followers,
+        },
+      };
     }
 
-    if (platform === "leetcode") {
+    if (cleanPlatform === "leetcode") {
       const query = {
         query: `
           query userPublicProfile($username: String!) {
             matchedUser(username: $username) {
+              username
               profile {
                 userAvatar
+                realName
+                ranking
+              }
+              submitStatsGlobal {
+                acSubmissionNum {
+                  difficulty
+                  count
+                }
               }
             }
           }
@@ -68,54 +105,134 @@ const validateAndFetchAvatar = async (platform, handle) => {
       };
 
       const res = await axios.post("https://leetcode.com/graphql", query, {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        timeout: 10000,
+        headers: getLeetCodeHeaders(),
+        timeout: 15000,
       });
 
-      return res.data?.data?.matchedUser?.profile?.userAvatar || null;
+      const matchedUser = res.data?.data?.matchedUser;
+
+      if (!matchedUser) {
+        return {
+          valid: false,
+          avatar: "",
+          message: "LeetCode handle not found",
+        };
+      }
+
+      return {
+        valid: true,
+        avatar: matchedUser.profile?.userAvatar || "",
+        message: "LeetCode handle found",
+        meta: {
+          username: matchedUser.username,
+          ranking: matchedUser.profile?.ranking,
+        },
+      };
     }
 
-    if (platform === "codeforces") {
+    if (cleanPlatform === "codeforces") {
       const res = await axios.get(
-        `https://codeforces.com/api/user.info?handles=${cleanHandle}`,
-        { timeout: 10000 }
+        `https://codeforces.com/api/user.info?handles=${encodeURIComponent(cleanHandle)}`,
+        { timeout: 15000 }
       );
 
-      return res.data?.result?.[0]?.titlePhoto || null;
+      const user = res.data?.result?.[0];
+
+      if (!user) {
+        return {
+          valid: false,
+          avatar: "",
+          message: "Codeforces handle not found",
+        };
+      }
+
+      return {
+        valid: true,
+        avatar: user.titlePhoto || user.avatar || "",
+        message: "Codeforces handle found",
+        meta: {
+          handle: user.handle,
+          rating: user.rating || 0,
+          rank: user.rank || "unrated",
+        },
+      };
     }
 
-    if (platform === "codechef") {
+    if (cleanPlatform === "codechef") {
+      let data = null;
+
       try {
         const res = await axios.get(`https://codechef-api.vercel.app/${cleanHandle}`, {
-          timeout: 10000,
+          timeout: 15000,
         });
-
-        if (res.data && res.data.status !== "Failed" && res.data.success !== false) {
-          return res.data.profile || res.data.profileImage || null;
-        }
+        data = res.data;
       } catch (error) {
         const fallback = await axios.get(
           `https://codechef-api-five.vercel.app/${cleanHandle}`,
-          { timeout: 10000 }
+          { timeout: 15000 }
         );
-
-        if (
-          fallback.data &&
-          fallback.data.status !== "Failed" &&
-          fallback.data.success !== false
-        ) {
-          return fallback.data.profile || fallback.data.profileImage || null;
-        }
+        data = fallback.data;
       }
+
+      if (!data || data.status === "Failed" || data.success === false) {
+        return {
+          valid: false,
+          avatar: "",
+          message: "CodeChef handle not found",
+        };
+      }
+
+      return {
+        valid: true,
+        avatar: data.profile || data.profileImage || "",
+        message: "CodeChef handle found",
+        meta: {
+          handle: cleanHandle,
+          rating: data.currentRating || data.rating || 0,
+          stars: data.stars || "",
+        },
+      };
     }
 
-    return null;
+    return {
+      valid: false,
+      avatar: "",
+      message: "Unsupported platform",
+    };
   } catch (error) {
     console.error(`Validation failed for ${platform}:`, error.message);
-    return null;
+
+    return {
+      valid: false,
+      avatar: "",
+      message: error.response?.data?.comment || error.message,
+    };
   }
+};
+
+const pickAvatarFromValidHandle = async ({
+  githubHandle,
+  leetcodeHandle,
+  codeforcesHandle,
+  codechefHandle,
+}) => {
+  const platformsForAvatar = [
+    { platform: "github", handle: githubHandle },
+    { platform: "leetcode", handle: leetcodeHandle },
+    { platform: "codeforces", handle: codeforcesHandle },
+    { platform: "codechef", handle: codechefHandle },
+  ];
+
+  for (const item of platformsForAvatar) {
+    if (!item.handle) continue;
+
+    const result = await validatePlatformHandle(item.platform, item.handle);
+    if (result.valid && result.avatar) {
+      return result.avatar;
+    }
+  }
+
+  return "";
 };
 
 exports.upsertProfile = async (req, res) => {
@@ -135,33 +252,21 @@ exports.upsertProfile = async (req, res) => {
 
     const normalizedUsername = username ? username.toLowerCase().trim() : "";
 
-    if (normalizedUsername) {
-      const existing = await Profile.findOne({
-        username: normalizedUsername,
-        userId: { $ne: req.user._id },
+    if (!normalizedUsername) {
+      return res.status(400).json({
+        message: "Username is required",
       });
-
-      if (existing) {
-        return res.status(400).json({
-          message: "Username already taken",
-        });
-      }
     }
 
-    let avatarUrl = "";
+    const existing = await Profile.findOne({
+      username: normalizedUsername,
+      userId: { $ne: req.user._id },
+    });
 
-    const platformsForAvatar = [
-      { platform: "github", handle: githubHandle },
-      { platform: "leetcode", handle: leetcodeHandle },
-      { platform: "codeforces", handle: codeforcesHandle },
-      { platform: "codechef", handle: codechefHandle },
-    ];
-
-    for (const item of platformsForAvatar) {
-      if (item.handle) {
-        avatarUrl = await validateAndFetchAvatar(item.platform, item.handle);
-        if (avatarUrl) break;
-      }
+    if (existing) {
+      return res.status(400).json({
+        message: "Username already taken",
+      });
     }
 
     const normalizedSkills = Array.isArray(skills)
@@ -173,17 +278,23 @@ exports.upsertProfile = async (req, res) => {
           .filter(Boolean)
       : [];
 
-    const updateData = {
-      userId: req.user._id,
-      name: name?.trim() || normalizedUsername || req.user.name || "",
-      username: normalizedUsername || undefined,
-      bio: bio || "Coding enthusiast",
-      skills: normalizedSkills,
-      isPublic: isPublic !== undefined ? Boolean(isPublic) : false,
+    const cleanHandles = {
       codeforcesHandle: codeforcesHandle?.trim() || "",
       leetcodeHandle: leetcodeHandle?.trim() || "",
       githubHandle: githubHandle?.trim() || "",
       codechefHandle: codechefHandle?.trim() || "",
+    };
+
+    const avatarUrl = await pickAvatarFromValidHandle(cleanHandles);
+
+    const updateData = {
+      userId: req.user._id,
+      name: name?.trim() || normalizedUsername || req.user.name || "",
+      username: normalizedUsername,
+      bio: bio || "Coding enthusiast",
+      skills: normalizedSkills,
+      isPublic: isPublic !== undefined ? Boolean(isPublic) : false,
+      ...cleanHandles,
       linkedinUrl: linkedinUrl?.trim() || "",
     };
 
@@ -193,7 +304,7 @@ exports.upsertProfile = async (req, res) => {
 
     const profile = await Profile.findOneAndUpdate(
       { userId: req.user._id },
-      updateData,
+      { $set: updateData },
       {
         new: true,
         upsert: true,
@@ -285,18 +396,20 @@ exports.validateHandle = async (req, res) => {
       });
     }
 
-    const avatar = await validateAndFetchAvatar(cleanPlatform, cleanHandle);
+    const result = await validatePlatformHandle(cleanPlatform, cleanHandle);
 
-    if (avatar) {
+    if (result.valid) {
       return res.status(200).json({
         valid: true,
-        avatar,
+        avatar: result.avatar || "",
+        message: result.message,
+        meta: result.meta || {},
       });
     }
 
     return res.status(400).json({
       valid: false,
-      message: "Handle not found or platform unavailable",
+      message: result.message || "Handle not found or platform unavailable",
     });
   } catch (error) {
     console.error("Handle Validation Error:", error.message);

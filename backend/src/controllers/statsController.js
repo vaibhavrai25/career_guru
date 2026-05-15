@@ -20,9 +20,12 @@ const normalizeDate = (date) => {
 const normalizeTag = (tag) => {
   const t = String(tag || "").toLowerCase().trim();
 
+  if (t.includes("binary search")) return "binary search";
+  if (t.includes("dynamic programming") || t === "dp") return "dp";
+  if (t.includes("data structures")) return "data structures";
+  if (t.includes("shortest")) return "shortest paths";
   if (t.includes("string")) return "string";
   if (t.includes("array")) return "array";
-  if (t.includes("dynamic programming") || t === "dp") return "dp";
   if (t.includes("graph")) return "graph";
   if (t.includes("tree")) return "tree";
   if (t.includes("sort")) return "sorting";
@@ -30,9 +33,6 @@ const normalizeTag = (tag) => {
   if (t.includes("math")) return "math";
   if (t.includes("greedy")) return "greedy";
   if (t.includes("recursion")) return "recursion";
-  if (t.includes("binary search")) return "binary search";
-  if (t.includes("data structures")) return "data structures";
-  if (t.includes("shortest")) return "shortest paths";
 
   return t || "general";
 };
@@ -45,8 +45,7 @@ const toPlainObject = (value) => {
   }
 
   if (typeof value.toObject === "function") {
-    const obj = value.toObject();
-    return obj || {};
+    return value.toObject() || {};
   }
 
   if (typeof value === "object") {
@@ -56,40 +55,22 @@ const toPlainObject = (value) => {
   return {};
 };
 
-const calculatePlatformStreak = (dates) => {
-  if (!Array.isArray(dates) || dates.length === 0) return { currentStreak: 0, maxStreak: 0 };
+const calculateStreakFromDates = (dates) => {
+  if (!Array.isArray(dates) || dates.length === 0) {
+    return {
+      currentStreak: 0,
+      maxStreak: 0,
+      activeDays: 0,
+      lastActiveDate: "",
+    };
+  }
 
-  const sorted = [...new Set(dates)]
+  const sortedAsc = [...new Set(dates)]
     .filter(Boolean)
     .sort((a, b) => new Date(a) - new Date(b));
 
-  if (!sorted.length) return { currentStreak: 0, maxStreak: 0 };
+  const sortedDesc = [...sortedAsc].sort((a, b) => new Date(b) - new Date(a));
 
-  // Calculate max streak from all history
-  let maxStreak = 0;
-  let running = 1;
-  let previous = null;
-
-  for (const dateString of sorted) {
-    const current = new Date(dateString);
-
-    if (!previous) {
-      running = 1;
-    } else {
-      const diff = Math.round((current - previous) / 86400000);
-      if (diff === 1) {
-        running += 1;
-      } else if (diff > 1) {
-        running = 1;
-      }
-    }
-
-    maxStreak = Math.max(maxStreak, running);
-    previous = current;
-  }
-
-  // Calculate current streak (today/yesterday only)
-  const sortedDesc = [...sorted].reverse();
   const today = normalizeDate(new Date());
   const yesterday = normalizeDate(new Date(Date.now() - 86400000));
 
@@ -111,7 +92,60 @@ const calculatePlatformStreak = (dates) => {
     }
   }
 
-  return { currentStreak, maxStreak };
+  let maxStreak = 0;
+  let running = 0;
+  let previous = null;
+
+  for (const dateString of sortedAsc) {
+    const current = new Date(dateString);
+
+    if (!previous) {
+      running = 1;
+    } else {
+      const diff = Math.round((current - previous) / 86400000);
+      running = diff === 1 ? running + 1 : 1;
+    }
+
+    maxStreak = Math.max(maxStreak, running);
+    previous = current;
+  }
+
+  return {
+    currentStreak,
+    maxStreak,
+    activeDays: sortedAsc.length,
+    lastActiveDate: sortedDesc[0] || "",
+  };
+};
+
+const getPlatformCurrentStreak = (platformData) => {
+  return Number(
+    platformData?.submissionsSummary?.currentStreak ||
+      platformData?.streak ||
+      calculateStreakFromDates(platformData?.dates || []).currentStreak ||
+      0
+  );
+};
+
+const getPlatformMaxStreak = (platformData) => {
+  return Number(
+    platformData?.submissionsSummary?.maxStreak ||
+      platformData?.maxStreak ||
+      calculateStreakFromDates(platformData?.dates || []).maxStreak ||
+      0
+  );
+};
+
+const getPlatformContestCount = (platformData) => {
+  return Array.isArray(platformData?.ratingHistory)
+    ? platformData.ratingHistory.length
+    : 0;
+};
+
+const getPlatformUpcomingCount = (platformData) => {
+  return Array.isArray(platformData?.upcomingContests)
+    ? platformData.upcomingContests.length
+    : 0;
 };
 
 const analyzeCompetency = (codingProfile) => {
@@ -186,13 +220,11 @@ const buildCombinedAnalytics = (coding) => {
   const combinedTopics = {};
 
   platforms.forEach((platform) => {
-    const data = coding?.[platform];
-    
-    if (!data || typeof data !== 'object') return;
-    
+    const data = coding?.[platform] || {};
+
     totalSolved += Number(data.totalSolved || 0);
 
-    if (Array.isArray(data.dates) && data.dates.length > 0) {
+    if (Array.isArray(data.dates)) {
       allDates.push(...data.dates);
     }
 
@@ -209,7 +241,8 @@ const buildCombinedAnalytics = (coding) => {
   const strongestTopics = sortedTopics.slice(0, 5).map(([topic]) => topic);
   const weakestTopics = sortedTopics.slice(-5).map(([topic]) => topic);
 
-  const totalActiveDays = [...new Set(allDates)].length;
+  const streakData = calculateStreakFromDates(allDates);
+  const totalActiveDays = streakData.activeDays;
 
   const productionReadyRepos = Number(
     coding?.github?.projectSignals?.productionReadyRepos || 0
@@ -228,15 +261,73 @@ const buildCombinedAnalytics = (coding) => {
     strongestTopics,
     weakestTopics,
     readinessScore,
+    currentStreak: streakData.currentStreak,
+    maxStreak: streakData.maxStreak,
     lastComputedAt: new Date(),
   };
+};
+
+const buildPlatformOverview = (coding) => {
+  const leetcode = coding?.leetcode || {};
+  const codeforces = coding?.codeforces || {};
+  const codechef = coding?.codechef || {};
+
+  return [
+    {
+      platform: "leetcode",
+      label: "LeetCode",
+      totalSolved: Number(leetcode.totalSolved || 0),
+      easy: Number(leetcode.easy || 0),
+      medium: Number(leetcode.medium || 0),
+      hard: Number(leetcode.hard || 0),
+      currentRating: Number(leetcode.rating || 0),
+      maxRating: Number(leetcode.maxRating || 0),
+      rank: leetcode.rank || "",
+      contests: getPlatformContestCount(leetcode),
+      upcomingContests: getPlatformUpcomingCount(leetcode),
+      currentStreak: getPlatformCurrentStreak(leetcode),
+      maxStreak: getPlatformMaxStreak(leetcode),
+      status: leetcode.status || "Pending Sync",
+    },
+    {
+      platform: "codeforces",
+      label: "Codeforces",
+      totalSolved: Number(codeforces.totalSolved || 0),
+      easy: Number(codeforces.easy || 0),
+      medium: Number(codeforces.medium || 0),
+      hard: Number(codeforces.hard || 0),
+      currentRating: Number(codeforces.rating || 0),
+      maxRating: Number(codeforces.maxRating || 0),
+      rank: codeforces.rank || "",
+      contests: getPlatformContestCount(codeforces),
+      upcomingContests: getPlatformUpcomingCount(codeforces),
+      currentStreak: getPlatformCurrentStreak(codeforces),
+      maxStreak: getPlatformMaxStreak(codeforces),
+      status: codeforces.status || "Pending Sync",
+    },
+    {
+      platform: "codechef",
+      label: "CodeChef",
+      totalSolved: Number(codechef.totalSolved || 0),
+      easy: Number(codechef.easy || 0),
+      medium: Number(codechef.medium || 0),
+      hard: Number(codechef.hard || 0),
+      currentRating: Number(codechef.rating || 0),
+      maxRating: Number(codechef.maxRating || 0),
+      rank: codechef.rank || "",
+      contests: getPlatformContestCount(codechef),
+      upcomingContests: getPlatformUpcomingCount(codechef),
+      currentStreak: getPlatformCurrentStreak(codechef),
+      maxStreak: getPlatformMaxStreak(codechef),
+      status: codechef.status || "Pending Sync",
+    },
+  ];
 };
 
 const createAnalyticsSnapshot = async (userId, codingProfile) => {
   if (!codingProfile) return;
 
   const today = normalizeDate(new Date());
-
   const combined = codingProfile.combined || buildCombinedAnalytics(codingProfile);
 
   await UserAnalyticsSnapshot.findOneAndUpdate(
@@ -262,6 +353,7 @@ const createAnalyticsSnapshot = async (userId, codingProfile) => {
 
         rawData: {
           combined,
+          platformOverview: buildPlatformOverview(codingProfile),
         },
       },
     },
@@ -294,13 +386,6 @@ const updateCodingProfilePlatform = async (userId, platform, platformData) => {
     }
   );
 
-  console.log(`💾 Saved ${platform}:`, {
-    totalSolved: platformData.totalSolved,
-    dates: platformData.dates?.length || 0,
-    topicCount: Object.keys(platformData.topicWise || {}).length || 0,
-    status: platformData.status,
-  });
-
   const combined = buildCombinedAnalytics(updated);
 
   const finalProfile = await CodingProfile.findOneAndUpdate(
@@ -322,25 +407,13 @@ const updateCodingProfilePlatform = async (userId, platform, platformData) => {
 };
 
 const syncPlatform = async ({ userId, platform, handle, fetcher }) => {
-  try {
-    const data = await fetcher(userId, handle);
-    
-    if (data.status === "Error" || !data.totalSolved) {
-      console.warn(`⚠️ Sync ${platform}: ${data.error || "No data returned"}`);
-    } else {
-      console.log(`✅ Sync ${platform}: ${data.totalSolved} problems, ${data.dates?.length || 0} dates`);
-    }
-    
-    const profile = await updateCodingProfilePlatform(userId, platform, data);
+  const data = await fetcher(userId, handle);
+  const profile = await updateCodingProfilePlatform(userId, platform, data);
 
-    return {
-      platform,
-      data: profile[platform],
-    };
-  } catch (error) {
-    console.error(`❌ Sync ${platform} Error:`, error.message);
-    throw error;
-  }
+  return {
+    platform,
+    data: profile[platform],
+  };
 };
 
 const scoreRepoQuality = (repo, languages = {}, readmeExists = false) => {
@@ -406,7 +479,7 @@ const fetchGitHub = async (userId, handle) => {
     const username = handle.trim();
 
     const userRes = await axios.get(`https://api.github.com/users/${username}`, {
-      timeout: 10000,
+      timeout: 30000,
       headers: {
         Accept: "application/vnd.github+json",
       },
@@ -415,7 +488,7 @@ const fetchGitHub = async (userId, handle) => {
     const reposRes = await axios.get(
       `https://api.github.com/users/${username}/repos?sort=updated&per_page=10`,
       {
-        timeout: 15000,
+        timeout: 30000,
         headers: {
           Accept: "application/vnd.github+json",
         },
@@ -443,15 +516,15 @@ const fetchGitHub = async (userId, handle) => {
     for (const repo of repos) {
       const [languagesRes, commitsRes, readmeRes] = await Promise.allSettled([
         axios.get(repo.languages_url, {
-          timeout: 10000,
+          timeout: 30000,
           headers: { Accept: "application/vnd.github+json" },
         }),
         axios.get(`https://api.github.com/repos/${repo.full_name}/commits?per_page=5`, {
-          timeout: 10000,
+          timeout: 30000,
           headers: { Accept: "application/vnd.github+json" },
         }),
         axios.get(`https://api.github.com/repos/${repo.full_name}/readme`, {
-          timeout: 10000,
+          timeout: 30000,
           headers: { Accept: "application/vnd.github+json" },
         }),
       ]);
@@ -806,13 +879,6 @@ exports.syncAllPlatforms = async (req, res) => {
       });
     }
 
-    console.log(`🔄 Syncing all platforms for user ${req.user._id}:`, {
-      leetcodeHandle: profile.leetcodeHandle ? "✓" : "✗",
-      codeforcesHandle: profile.codeforcesHandle ? "✓" : "✗",
-      codechefHandle: profile.codechefHandle ? "✓" : "✗",
-      githubHandle: profile.githubHandle ? "✓" : "✗",
-    });
-
     const jobs = [];
 
     if (profile.leetcodeHandle) {
@@ -885,8 +951,6 @@ exports.syncAllPlatforms = async (req, res) => {
 
     const latestProfile = await CodingProfile.findOne({ userId: req.user._id });
 
-    console.log(`✅ Sync complete. Results:`, results.map(r => ({ platform: r.platform || '?', success: r.success })));
-
     return res.status(200).json({
       message: "Platform sync completed",
       results,
@@ -915,7 +979,7 @@ exports.getGitHubRepos = async (req, res) => {
     const response = await axios.get(
       `https://api.github.com/users/${profile.githubHandle.trim()}/repos?sort=updated&per_page=10`,
       {
-        timeout: 10000,
+        timeout: 30000,
         headers: {
           Accept: "application/vnd.github+json",
         },
@@ -943,7 +1007,9 @@ exports.getDashboardSummary = async (req, res) => {
       return res.status(200).json({
         totalSolved: 0,
         streak: 0,
+        maxStreak: 0,
         irs: 0,
+        platformOverview: [],
         analysis: {
           weakestTopics: [],
           strongestTopic: "None",
@@ -961,18 +1027,12 @@ exports.getDashboardSummary = async (req, res) => {
           strongestTopics: [],
           weakestTopics: [],
           readinessScore: 0,
+          currentStreak: 0,
+          maxStreak: 0,
         },
         message: "No coding stats synced yet",
       });
     }
-
-    // Log platform data availability
-    console.log(`📊 Dashboard Stats:`, {
-      leetcodeData: !!coding.leetcode?.totalSolved,
-      codeforcesData: !!coding.codeforces?.totalSolved,
-      codechefData: !!coding.codechef?.totalSolved,
-      githubData: !!coding.github?.projectSignals,
-    });
 
     const totalSolved =
       Number(coding.leetcode?.totalSolved || 0) +
@@ -985,18 +1045,7 @@ exports.getDashboardSummary = async (req, res) => {
       ...(coding.codechef?.dates || []),
     ];
 
-    const uniqueDates = [...new Set(allDates)];
-    
-    // Calculate both current and max streak from aggregated dates
-    const streakData = calculatePlatformStreak(uniqueDates);
-    
-    // Use current streak if active today/yesterday, otherwise use max historical streak
-    const streak = streakData.currentStreak > 0 ? streakData.currentStreak : streakData.maxStreak;
-    
-    if (allDates.length === 0) {
-      console.warn(`⚠️ Dashboard: No submission dates found for user ${req.user._id}`);
-    }
-    
+    const streakData = calculateStreakFromDates(allDates);
     const competencyData = analyzeCompetency(coding);
 
     const strongestTopic =
@@ -1004,56 +1053,58 @@ exports.getDashboardSummary = async (req, res) => {
         ? [...competencyData].sort((a, b) => b.score - a.score)[0].topic
         : "None";
 
-    const irs = coding.combined?.readinessScore
-      ? coding.combined.readinessScore
-      : Math.round(
-          Math.min(totalSolved / 600, 1) * 35 +
-            Math.min(streak / 30, 1) * 25 +
-            Math.min(competencyData.length / 25, 1) * 25 +
-            Math.min(
-              Number(coding.github?.projectSignals?.productionReadyRepos || 0) / 3,
-              1
-            ) *
-              15
-        );
+    const combined =
+      coding.combined && coding.combined.readinessScore !== undefined
+        ? coding.combined
+        : buildCombinedAnalytics(coding);
+
+    const irs =
+      combined?.readinessScore !== undefined
+        ? combined.readinessScore
+        : Math.round(
+            Math.min(totalSolved / 600, 1) * 35 +
+              Math.min(streakData.currentStreak / 30, 1) * 25 +
+              Math.min(competencyData.length / 25, 1) * 25 +
+              Math.min(
+                Number(coding.github?.projectSignals?.productionReadyRepos || 0) / 3,
+                1
+              ) *
+                15
+          );
+
+    const platformOverview = buildPlatformOverview(coding);
 
     return res.status(200).json({
       totalSolved,
-      streak,
+      streak: Number(combined?.currentStreak || streakData.currentStreak || 0),
+      maxStreak: Number(combined?.maxStreak || streakData.maxStreak || 0),
       irs,
+      platformOverview,
       analysis: {
         weakestTopics: competencyData.slice(0, 6),
         strongestTopic,
         fullCompetency: competencyData,
       },
-      combined: coding.combined || {},
+      combined: combined || {},
       platforms: {
         leetcode: {
-          ...coding.leetcode,
-          _status: coding.leetcode?.status || "Pending Sync",
-          _totalSolved: coding.leetcode?.totalSolved || 0,
+          ...(coding.leetcode?.toObject ? coding.leetcode.toObject() : coding.leetcode || {}),
+          streak: getPlatformCurrentStreak(coding.leetcode),
+          maxStreak: getPlatformMaxStreak(coding.leetcode),
         },
         codeforces: {
-          ...coding.codeforces,
-          _status: coding.codeforces?.status || "Pending Sync",
-          _totalSolved: coding.codeforces?.totalSolved || 0,
+          ...(coding.codeforces?.toObject
+            ? coding.codeforces.toObject()
+            : coding.codeforces || {}),
+          streak: getPlatformCurrentStreak(coding.codeforces),
+          maxStreak: getPlatformMaxStreak(coding.codeforces),
         },
         codechef: {
-          ...coding.codechef,
-          _status: coding.codechef?.status || "Pending Sync",
-          _totalSolved: coding.codechef?.totalSolved || 0,
+          ...(coding.codechef?.toObject ? coding.codechef.toObject() : coding.codechef || {}),
+          streak: getPlatformCurrentStreak(coding.codechef),
+          maxStreak: getPlatformMaxStreak(coding.codechef),
         },
-        github: {
-          ...coding.github,
-          _status: coding.github?.status || "Pending Sync",
-        },
-      },
-      debug: {
-        leetcodeHasData: !!coding.leetcode?.totalSolved,
-        codeforcesHasData: !!coding.codeforces?.totalSolved,
-        codechefHasData: !!coding.codechef?.totalSolved,
-        githubHasData: !!coding.github?.projectSignals?.productionReadyRepos,
-        totalDates: allDates.length,
+        github: coding.github || {},
       },
     });
   } catch (error) {

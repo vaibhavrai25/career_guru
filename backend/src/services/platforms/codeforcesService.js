@@ -9,6 +9,8 @@ const normalizeDate = (timestampSeconds) => {
   return new Date(timestampSeconds * 1000).toISOString().split("T")[0];
 };
 
+const todayString = () => new Date().toISOString().split("T")[0];
+
 const timestampToDateObj = (timestampSeconds) => {
   if (!timestampSeconds) return null;
   return new Date(timestampSeconds * 1000);
@@ -23,7 +25,12 @@ const ratingToDifficultyBucket = (rating) => {
 
 const calculateStreaks = (dates) => {
   if (!Array.isArray(dates) || dates.length === 0) {
-    return { currentStreak: 0, maxStreak: 0, activeDays: 0, lastActiveDate: "" };
+    return {
+      currentStreak: 0,
+      maxStreak: 0,
+      activeDays: 0,
+      lastActiveDate: "",
+    };
   }
 
   const sortedAsc = [...new Set(dates)]
@@ -32,7 +39,7 @@ const calculateStreaks = (dates) => {
 
   const sortedDesc = [...sortedAsc].sort((a, b) => new Date(b) - new Date(a));
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayString();
   const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 
   let currentStreak = 0;
@@ -93,7 +100,10 @@ const buildActivityMaps = (dates) => {
     yearlyActivity[yearKey] = (yearlyActivity[yearKey] || 0) + 1;
   });
 
-  return { monthlyActivity, yearlyActivity };
+  return {
+    monthlyActivity,
+    yearlyActivity,
+  };
 };
 
 const predictCodeforcesRating = (rating, ratingHistory = [], activeDays = 0) => {
@@ -113,12 +123,14 @@ const predictCodeforcesRating = (rating, ratingHistory = [], activeDays = 0) => 
 
   const recent = ratingHistory.slice(-5);
   const deltas = recent.map((item) => Number(item.ratingDelta || 0));
+
   const avgDelta = deltas.length
     ? deltas.reduce((sum, value) => sum + value, 0) / deltas.length
     : 0;
 
   const volatility = deltas.length
-    ? deltas.reduce((sum, value) => sum + Math.abs(value - avgDelta), 0) / deltas.length
+    ? deltas.reduce((sum, value) => sum + Math.abs(value - avgDelta), 0) /
+      deltas.length
     : 50;
 
   const consistencyBoost = Math.min(activeDays / 30, 1) * 20;
@@ -164,8 +176,9 @@ const saveCodeforcesUpcomingContests = async (upcomingContests) => {
             phase: contest.phase || "BEFORE",
             type: "Codeforces Contest",
             difficultyHint: "",
+            isFallback: false,
             isActive: true,
-            rawData: contest,
+            rawData: contest.rawData || contest,
           },
         },
         upsert: true,
@@ -187,16 +200,16 @@ exports.fetchCodeforces = async (userId, handle) => {
 
     const [infoRes, statusRes, ratingRes, contestRes] = await Promise.allSettled([
       axios.get(`https://codeforces.com/api/user.info?handles=${username}`, {
-        timeout: 10000,
+        timeout: 30000,
       }),
       axios.get(`https://codeforces.com/api/user.status?handle=${username}`, {
-        timeout: 20000,
+        timeout: 30000,
       }),
       axios.get(`https://codeforces.com/api/user.rating?handle=${username}`, {
-        timeout: 10000,
+        timeout: 30000,
       }),
-      axios.get(`https://codeforces.com/api/contest.list?gym=false`, {
-        timeout: 10000,
+      axios.get("https://codeforces.com/api/contest.list?gym=false", {
+        timeout: 30000,
       }),
     ]);
 
@@ -236,15 +249,18 @@ exports.fetchCodeforces = async (userId, handle) => {
     const platformSubmissionOps = submissions.map((sub) => {
       const problem = sub.problem || {};
       const tags = Array.isArray(problem.tags)
-        ? problem.tags.map((tag) => tag.toLowerCase().trim())
+        ? problem.tags.map((tag) => String(tag).toLowerCase().trim())
         : [];
 
       const rating = Number(problem.rating || 0);
       const difficulty = ratingToDifficultyBucket(rating);
-      const date = sub.creationTimeSeconds ? normalizeDate(sub.creationTimeSeconds) : new Date().toISOString().split("T")[0];
-      const isAccepted = sub.verdict === "OK";
+      const date = sub.creationTimeSeconds
+        ? normalizeDate(sub.creationTimeSeconds)
+        : todayString();
 
+      const isAccepted = sub.verdict === "OK";
       const verdict = sub.verdict || "UNKNOWN";
+
       verdictWise[verdict] = (verdictWise[verdict] || 0) + 1;
 
       if (sub.programmingLanguage) {
@@ -285,7 +301,7 @@ exports.fetchCodeforces = async (userId, handle) => {
                   ? `https://codeforces.com/problemset/problem/${problem.contestId}/${problem.index}`
                   : "",
               contestId: problem.contestId ? String(problem.contestId) : "",
-              contestName: sub.author?.participantType || "",
+              contestName: "",
               index: problem.index || "",
               verdict,
               language: sub.programmingLanguage || "",
@@ -300,6 +316,8 @@ exports.fetchCodeforces = async (userId, handle) => {
                 : null,
               date,
               isAccepted,
+              isCalendarOnly: false,
+              source: "codeforces-user-status",
               rawData: sub,
             },
           },
@@ -320,7 +338,7 @@ exports.fetchCodeforces = async (userId, handle) => {
 
     const solvedProblemOps = solvedSubs.map((sub) => {
       const tags = sub.problem.tags || [];
-      const normalizedTags = tags.map((tag) => tag.toLowerCase().trim());
+      const normalizedTags = tags.map((tag) => String(tag).toLowerCase().trim());
       const primaryTopic = normalizedTags[0] || "general";
       const date = normalizeDate(sub.creationTimeSeconds);
       const rating = Number(sub.problem.rating || 0);
@@ -359,7 +377,7 @@ exports.fetchCodeforces = async (userId, handle) => {
               difficulty,
               difficultyRating: rating,
               contestId: sub.problem.contestId ? String(sub.problem.contestId) : "",
-              contestName: sub.author?.participantType || "",
+              contestName: "",
               language: sub.programmingLanguage || "",
               verdict: sub.verdict || "",
               date,
@@ -381,12 +399,6 @@ exports.fetchCodeforces = async (userId, handle) => {
     const dates = [...new Set(acceptedDates)];
     const streakData = calculateStreaks(dates);
     const activityMaps = buildActivityMaps(allDates);
-
-    if (dates.length === 0) {
-      console.warn(`⚠️ No accepted submission dates found for Codeforces user ${username}`);
-    } else {
-      console.log(`✅ Codeforces: Found ${dates.length} unique accepted submission dates`);
-    }
 
     const ratingHistory = ratingHistoryRaw.map((item) => ({
       rating: item.newRating || 0,
@@ -443,7 +455,7 @@ exports.fetchCodeforces = async (userId, handle) => {
 
     const upcomingContests = contestsRaw
       .filter((contest) => contest.phase === "BEFORE")
-      .slice(0, 10)
+      .slice(0, 20)
       .map((contest) => ({
         contestId: contest.id ? String(contest.id) : "",
         title: contest.name || "",
@@ -453,7 +465,8 @@ exports.fetchCodeforces = async (userId, handle) => {
           : null,
         durationSeconds: Number(contest.durationSeconds || 0),
         url: contest.id ? `https://codeforces.com/contest/${contest.id}` : "",
-        phase: contest.phase || "",
+        phase: contest.phase || "BEFORE",
+        rawData: contest,
       }));
 
     await saveCodeforcesUpcomingContests(upcomingContests);
@@ -502,6 +515,8 @@ exports.fetchCodeforces = async (userId, handle) => {
         difficultyWise,
         monthlyActivity: activityMaps.monthlyActivity,
         yearlyActivity: activityMaps.yearlyActivity,
+        limitedData: false,
+        note: "",
       },
       profileMeta: {
         avatar: userInfo.avatar || "",
@@ -563,6 +578,8 @@ exports.fetchCodeforces = async (userId, handle) => {
         difficultyWise: {},
         monthlyActivity: {},
         yearlyActivity: {},
+        limitedData: false,
+        note: "Codeforces sync failed.",
       },
       profileMeta: {},
       status: "Error",

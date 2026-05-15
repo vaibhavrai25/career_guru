@@ -1,344 +1,622 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  CheckCircle,
-  XCircle,
-  Loader2,
-  Github,
-  Code,
-  UserRound,
-} from "lucide-react";
 import api from "../api/axios";
-import { syncAllPlatforms } from "../api/stats";
+import {
+  syncLeetCode,
+  syncCodeforces,
+  syncCodechef,
+  syncGitHub,
+} from "../api/stats";
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Code2,
+  ExternalLink,
+  Github,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  SkipForward,
+  Sparkles,
+  Trophy,
+  UserCheck,
+  Utensils,
+  Zap,
+} from "lucide-react";
+
+const platforms = [
+  {
+    key: "leetcode",
+    label: "LeetCode",
+    field: "leetcodeHandle",
+    placeholder: "leetcode_username",
+    icon: Code2,
+    sync: syncLeetCode,
+    profileUrl: (handle) => `https://leetcode.com/u/${handle}/`,
+    tone: "text-[var(--app-accent)]",
+  },
+  {
+    key: "codeforces",
+    label: "Codeforces",
+    field: "codeforcesHandle",
+    placeholder: "codeforces_handle",
+    icon: Trophy,
+    sync: syncCodeforces,
+    profileUrl: (handle) => `https://codeforces.com/profile/${handle}`,
+    tone: "text-blue-500",
+  },
+  {
+    key: "codechef",
+    label: "CodeChef",
+    field: "codechefHandle",
+    placeholder: "codechef_handle",
+    icon: Utensils,
+    sync: syncCodechef,
+    profileUrl: (handle) => `https://www.codechef.com/users/${handle}`,
+    tone: "text-orange-500",
+  },
+  {
+    key: "github",
+    label: "GitHub",
+    field: "githubHandle",
+    placeholder: "github_username",
+    icon: Github,
+    sync: syncGitHub,
+    profileUrl: (handle) => `https://github.com/${handle}`,
+    tone: "text-[var(--app-text)]",
+  },
+];
+
+const initialHandles = platforms.reduce((acc, platform) => {
+  acc[platform.key] = "";
+  return acc;
+}, {});
 
 const Onboarding = () => {
-  const [handles, setHandles] = useState({
-    username: "",
-    leetcodeHandle: "",
-    codeforcesHandle: "",
-    codechefHandle: "",
-    githubHandle: "",
-  });
-
-  const [validationStatus, setValidationStatus] = useState({});
-  const [validationMessage, setValidationMessage] = useState({});
-  const [syncing, setSyncing] = useState(false);
-  const [syncResults, setSyncResults] = useState([]);
-  const [error, setError] = useState("");
-
   const navigate = useNavigate();
 
-  const updateValidation = (field, status, message) => {
-    setValidationStatus((prev) => ({ ...prev, [field]: status }));
-    setValidationMessage((prev) => ({ ...prev, [field]: message }));
+  const [handles, setHandles] = useState(initialHandles);
+  const [status, setStatus] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+
+  const filledPlatforms = useMemo(() => {
+    return platforms.filter((platform) => handles[platform.key]?.trim());
+  }, [handles]);
+
+  const completedCount = useMemo(() => {
+    return Object.values(status).filter((item) => item?.state === "synced")
+      .length;
+  }, [status]);
+
+  const setPlatformStatus = (platformKey, nextStatus) => {
+    setStatus((prev) => ({
+      ...prev,
+      [platformKey]: {
+        ...(prev[platformKey] || {}),
+        ...nextStatus,
+      },
+    }));
   };
 
-  const buildProfilePayload = () => ({
-    username: handles.username.trim().toLowerCase(),
-    name: handles.username.trim(),
-    leetcodeHandle: handles.leetcodeHandle.trim(),
-    codeforcesHandle: handles.codeforcesHandle.trim(),
-    codechefHandle: handles.codechefHandle.trim(),
-    githubHandle: handles.githubHandle.trim(),
-    bio: "Coding enthusiast building a strong SDE profile.",
-    skills: [],
-    isPublic: true,
-  });
+  const updateHandle = (platformKey, value) => {
+    setHandles((prev) => ({
+      ...prev,
+      [platformKey]: value,
+    }));
 
-  const handleCheck = async (platform) => {
-    const value =
-      platform === "username"
-        ? handles.username
-        : handles[`${platform}Handle`];
+    setStatus((prev) => ({
+      ...prev,
+      [platformKey]: undefined,
+    }));
 
-    if (!value || !value.trim()) {
-      updateValidation(platform, "invalid", "Enter a value before checking.");
-      return;
+    setNotice("");
+    setError("");
+  };
+
+  const validateHandle = async (platform) => {
+    const handle = handles[platform.key]?.trim();
+
+    if (!handle) {
+      setPlatformStatus(platform.key, {
+        state: "idle",
+        message: "Enter username first.",
+      });
+      return false;
     }
 
-    updateValidation(platform, "validating", "Checking...");
+    setPlatformStatus(platform.key, {
+      state: "validating",
+      message: "Checking username...",
+    });
 
     try {
       const res = await api.get("/profile/validate", {
         params: {
-          platform,
-          handle: value.trim(),
+          platform: platform.key,
+          handle,
         },
       });
 
-      if (res.data?.valid) {
-        updateValidation(
-          platform,
-          "valid",
-          platform === "username"
-            ? "Username is available."
-            : "Valid handle."
+      const isValid =
+        res.data?.valid === true ||
+        res.data?.exists === true ||
+        res.data?.success === true ||
+        res.data?.status === "valid" ||
+        res.data?.status === "Linked";
+
+      if (!isValid) {
+        throw new Error(
+          res.data?.message || `${platform.label} username not found.`
         );
-      } else {
-        updateValidation(platform, "invalid", "Invalid value.");
       }
+
+      setPlatformStatus(platform.key, {
+        state: "valid",
+        message: "Username verified.",
+      });
+
+      return true;
     } catch (err) {
-      updateValidation(
-        platform,
-        "invalid",
-        err.response?.data?.message || "Invalid username or handle."
-      );
+      setPlatformStatus(platform.key, {
+        state: "error",
+        message:
+          err.response?.data?.message ||
+          err.message ||
+          `${platform.label} validation failed.`,
+      });
+
+      return false;
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const saveHandlesToProfile = async () => {
+    const payload = {};
 
-    if (!handles.username.trim()) {
-      setError("Platform username is required.");
+    platforms.forEach((platform) => {
+      const handle = handles[platform.key]?.trim();
+
+      if (handle) {
+        payload[platform.field] = handle;
+      }
+    });
+
+    if (Object.keys(payload).length === 0) {
+      return false;
+    }
+
+    await api.post("/profile", payload);
+    return true;
+  };
+
+  const syncPlatform = async (platform) => {
+    const handle = handles[platform.key]?.trim();
+
+    if (!handle) {
+      setPlatformStatus(platform.key, {
+        state: "idle",
+        message: "Enter username first.",
+      });
       return;
     }
 
     setError("");
-    setSyncResults([]);
-    setSyncing(true);
+    setNotice("");
+
+    const valid = await validateHandle(platform);
+
+    if (!valid) return;
+
+    setPlatformStatus(platform.key, {
+      state: "saving",
+      message: "Saving username...",
+    });
 
     try {
-      await api.post("/profile", buildProfilePayload());
+      await api.post("/profile", {
+        [platform.field]: handle,
+      });
 
-      let syncResponse = null;
+      setPlatformStatus(platform.key, {
+        state: "syncing",
+        message: "Syncing stats...",
+      });
 
-      try {
-        syncResponse = await syncAllPlatforms();
-        setSyncResults(syncResponse?.results || []);
-      } catch (syncErr) {
-        setSyncResults([
-          {
-            success: false,
-            platform: "sync",
-            error:
-              syncErr.response?.data?.message ||
-              "Profile saved, but platform sync failed.",
-          },
-        ]);
-      }
+      await platform.sync();
 
-      setTimeout(() => {
-        navigate("/", { replace: true });
-      }, 800);
+      setPlatformStatus(platform.key, {
+        state: "synced",
+        message: "Linked and synced.",
+      });
+
+      setNotice(`${platform.label} linked successfully.`);
     } catch (err) {
-      setError(err.response?.data?.message || "Profile setup failed.");
-    } finally {
-      setSyncing(false);
+      setPlatformStatus(platform.key, {
+        state: "error",
+        message:
+          err.response?.data?.message ||
+          err.message ||
+          `${platform.label} sync failed.`,
+      });
     }
   };
 
+  const validateAll = async () => {
+    setError("");
+    setNotice("");
+
+    if (filledPlatforms.length === 0) {
+      setError("Enter at least one username or skip this step.");
+      return;
+    }
+
+    for (const platform of filledPlatforms) {
+      await validateHandle(platform);
+    }
+  };
+
+  const syncAllEntered = async () => {
+    setError("");
+    setNotice("");
+
+    if (filledPlatforms.length === 0) {
+      setError("Enter at least one username or skip this step.");
+      return;
+    }
+
+    setSyncingAll(true);
+
+    try {
+      await saveHandlesToProfile();
+
+      for (const platform of filledPlatforms) {
+        await syncPlatform(platform);
+      }
+
+      setNotice(
+        "Selected platforms synced. You can add more later from Profile Settings."
+      );
+    } finally {
+      setSyncingAll(false);
+    }
+  };
+
+  const continueToDashboard = async () => {
+    setSaving(true);
+    setError("");
+
+    try {
+      if (filledPlatforms.length > 0) {
+        await saveHandlesToProfile();
+      }
+
+      localStorage.removeItem("onboardingPending");
+      navigate("/dashboard", { replace: true });
+    } catch (err) {
+      setError(err.response?.data?.message || "Could not save onboarding data.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const skipOnboarding = () => {
+    localStorage.removeItem("onboardingPending");
+    navigate("/dashboard", { replace: true });
+  };
+
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-6">
-      <div className="max-w-lg w-full bg-gray-900 border border-gray-800 p-10 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-        <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-600/10 rounded-full blur-3xl" />
+    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)] relative overflow-hidden">
+      <div className="absolute -top-44 -left-44 h-96 w-96 rounded-full bg-[var(--app-accent)]/10 blur-3xl" />
+      <div className="absolute -bottom-44 -right-44 h-96 w-96 rounded-full bg-blue-500/10 blur-3xl" />
 
-        <div className="relative z-10">
-          <h1 className="text-3xl font-black text-white italic mb-2 tracking-tight uppercase">
-            Connect <span className="text-blue-500">Profiles</span>
-          </h1>
-
-          <p className="text-gray-500 mb-2 font-medium text-sm">
-            Set up your analytics dashboard. Handles are optional except your
-            platform username.
-          </p>
-
-          <p className="text-gray-400 mb-8 text-xs">
-            After saving, Career Guru will sync all linked platforms
-            automatically.
-          </p>
-
-          {error && (
-            <div className="mb-5 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">
-              {error}
+      <main className="relative z-10 max-w-6xl mx-auto px-4 py-5 md:py-8">
+        <div className="flex items-center justify-between gap-4 mb-5">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-xl bg-[var(--app-accent)] text-zinc-950 flex items-center justify-center font-black text-sm shadow-sm">
+              CG
             </div>
-          )}
 
-          {syncResults.length > 0 && (
-            <div className="mb-5 rounded-xl border border-gray-800 bg-gray-950 p-3 space-y-2">
-              <p className="text-xs font-black uppercase tracking-widest text-gray-500">
-                Sync results
+            <div>
+              <p className="text-sm font-black tracking-tight leading-none">
+                Career Guru
               </p>
-              {syncResults.map((item, index) => (
-                <div
-                  key={`${item.platform || "sync"}-${index}`}
-                  className="flex items-center justify-between text-xs"
-                >
-                  <span className="text-gray-300 capitalize">
-                    {item.platform || "Platform"}
-                  </span>
-                  <span
-                    className={
-                      item.success ? "text-emerald-400" : "text-red-400"
-                    }
-                  >
-                    {item.success ? "Synced" : item.error || "Failed"}
-                  </span>
+              <p className="text-[9px] text-[var(--app-faint)] font-bold uppercase tracking-[0.16em] mt-1">
+                Onboarding
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={skipOnboarding}
+            className="app-btn-secondary px-3 py-2 text-[10px] uppercase tracking-widest"
+          >
+            <SkipForward size={12} />
+            Skip
+          </button>
+        </div>
+
+        <section className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+          <div className="xl:col-span-4 space-y-4">
+            <div className="app-card p-5 md:p-6 overflow-hidden relative">
+              <div className="absolute -top-20 -right-20 h-52 w-52 rounded-full bg-[var(--app-accent)]/10 blur-3xl" />
+
+              <div className="relative z-10">
+                <div className="inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-surface-2)] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-[var(--app-muted)] mb-4">
+                  <Sparkles size={12} className="text-[var(--app-accent)]" />
+                  Flexible Setup
                 </div>
-              ))}
+
+                <h1 className="text-3xl md:text-4xl font-black tracking-tighter leading-none mb-4">
+                  Connect your coding profiles.
+                </h1>
+
+                <p className="text-sm text-[var(--app-muted)] leading-6 mb-4">
+                  Add usernames for the platforms you use. Career Guru will
+                  validate and sync your stats for dashboards, AI planning, and
+                  public portfolio.
+                </p>
+
+                <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-3 flex items-start gap-2.5">
+                  <ShieldCheck size={15} className="text-blue-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-[var(--app-muted)] leading-5">
+                    This step is optional. You can skip now and sync platforms
+                    later from Profile Settings.
+                  </p>
+                </div>
+              </div>
             </div>
+
+            <div className="grid grid-cols-3 gap-2.5">
+              <SmallStat label="Entered" value={filledPlatforms.length} />
+              <SmallStat label="Synced" value={completedCount} />
+              <SmallStat label="Total" value={platforms.length} />
+            </div>
+
+            <div className="app-card p-4">
+              <h2 className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--app-muted)] mb-3">
+                What this unlocks
+              </h2>
+
+              <div className="space-y-2.5">
+                <Benefit text="Live coding analytics." />
+                <Benefit text="Weak topic detection." />
+                <Benefit text="Contest and rating tracking." />
+                <Benefit text="Public portfolio platform links." />
+              </div>
+            </div>
+          </div>
+
+          <div className="xl:col-span-8">
+            <div className="app-card p-4 md:p-5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
+                <div>
+                  <p className="text-[9px] text-[var(--app-accent)] font-black uppercase tracking-[0.2em] mb-1.5">
+                    Platform Setup
+                  </p>
+                  <h2 className="text-xl md:text-2xl font-black tracking-tight">
+                    Validate and Sync Usernames
+                  </h2>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={validateAll}
+                    disabled={syncingAll || saving}
+                    className="app-btn-secondary px-3 py-2 text-[10px] uppercase tracking-widest"
+                  >
+                    <UserCheck size={12} />
+                    Validate All
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={syncAllEntered}
+                    disabled={syncingAll || saving}
+                    className="app-btn-primary px-3 py-2 text-[10px] uppercase tracking-widest"
+                  >
+                    {syncingAll ? (
+                      <>
+                        <Loader2 size={12} className="animate-spin" />
+                        Syncing
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw size={12} />
+                        Sync Entered
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {notice && (
+                <div className="mb-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-500 flex items-center gap-2">
+                  <CheckCircle2 size={14} />
+                  {notice}
+                </div>
+              )}
+
+              {error && (
+                <div className="mb-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500 flex items-center gap-2">
+                  <AlertCircle size={14} />
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {platforms.map((platform) => (
+                  <PlatformInputCard
+                    key={platform.key}
+                    platform={platform}
+                    handle={handles[platform.key]}
+                    status={status[platform.key]}
+                    onChange={(value) => updateHandle(platform.key, value)}
+                    onValidate={() => validateHandle(platform)}
+                    onSync={() => syncPlatform(platform)}
+                  />
+                ))}
+              </div>
+
+              <div className="mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[var(--app-border)] pt-4">
+                <p className="text-xs text-[var(--app-muted)] leading-5">
+                  Not ready with your handles? Skip now and complete setup later.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={skipOnboarding}
+                    className="app-btn-secondary px-4 py-2.5 text-[10px] uppercase tracking-widest"
+                  >
+                    Skip for Now
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={continueToDashboard}
+                    disabled={saving || syncingAll}
+                    className="app-btn-primary px-4 py-2.5 text-[10px] uppercase tracking-widest"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 size={12} className="animate-spin" />
+                        Saving
+                      </>
+                    ) : (
+                      <>
+                        Continue
+                        <ArrowRight size={12} />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+};
+
+const PlatformInputCard = ({
+  platform,
+  handle,
+  status,
+  onChange,
+  onValidate,
+  onSync,
+}) => {
+  const Icon = platform.icon;
+  const currentState = status?.state || "idle";
+  const isBusy = ["validating", "saving", "syncing"].includes(currentState);
+  const profileLink = handle?.trim() ? platform.profileUrl(handle.trim()) : "";
+
+  return (
+    <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-surface-2)] p-3">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="flex items-center gap-2.5 min-w-0 lg:w-40">
+          <div className="h-9 w-9 rounded-xl bg-[var(--app-surface)] border border-[var(--app-border)] flex items-center justify-center shrink-0">
+            <Icon size={15} className={platform.tone} />
+          </div>
+
+          <div className="min-w-0">
+            <p className="text-sm font-black truncate">{platform.label}</p>
+            <p className="text-[9px] text-[var(--app-faint)] font-bold uppercase tracking-widest">
+              Username
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-1">
+          <input
+            value={handle}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={platform.placeholder}
+            className="app-input px-3 py-2.5 text-xs"
+          />
+
+          {status?.message && (
+            <p
+              className={`text-[11px] mt-1.5 ${
+                currentState === "error"
+                  ? "text-red-500"
+                  : currentState === "synced"
+                  ? "text-emerald-500"
+                  : "text-[var(--app-muted)]"
+              }`}
+            >
+              {status.message}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 lg:w-56 lg:justify-end">
+          {profileLink && (
+            <a
+              href={profileLink}
+              target="_blank"
+              rel="noreferrer"
+              className="h-9 w-9 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] text-[var(--app-muted)] hover:text-[var(--app-text)] flex items-center justify-center"
+              title={`Open ${platform.label}`}
+            >
+              <ExternalLink size={13} />
+            </a>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <OnboardingField
-              icon={<UserRound size={16} />}
-              label="Platform Username"
-              placeholder="e.g. vaibhav_codes"
-              value={handles.username}
-              onChange={(v) => setHandles({ ...handles, username: v })}
-              onCheck={() => handleCheck("username")}
-              status={validationStatus.username}
-              message={validationMessage.username}
-              required
-            />
+          <button
+            type="button"
+            onClick={onValidate}
+            disabled={isBusy}
+            className="app-btn-secondary px-3 py-2 text-[10px] uppercase tracking-widest"
+          >
+            {currentState === "validating" ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <UserCheck size={12} />
+            )}
+            Validate
+          </button>
 
-            <OnboardingField
-              icon={<Code size={16} />}
-              label="LeetCode Handle"
-              placeholder="leetcode username"
-              value={handles.leetcodeHandle}
-              onChange={(v) => setHandles({ ...handles, leetcodeHandle: v })}
-              onCheck={() => handleCheck("leetcode")}
-              status={validationStatus.leetcode}
-              message={validationMessage.leetcode}
-            />
-
-            <OnboardingField
-              icon={<Github size={16} />}
-              label="GitHub Handle"
-              placeholder="github username"
-              value={handles.githubHandle}
-              onChange={(v) => setHandles({ ...handles, githubHandle: v })}
-              onCheck={() => handleCheck("github")}
-              status={validationStatus.github}
-              message={validationMessage.github}
-            />
-
-            <OnboardingField
-              icon={<Code size={16} />}
-              label="Codeforces Handle"
-              placeholder="codeforces handle"
-              value={handles.codeforcesHandle}
-              onChange={(v) => setHandles({ ...handles, codeforcesHandle: v })}
-              onCheck={() => handleCheck("codeforces")}
-              status={validationStatus.codeforces}
-              message={validationMessage.codeforces}
-            />
-
-            <OnboardingField
-              icon={<Code size={16} />}
-              label="CodeChef Handle"
-              placeholder="codechef username"
-              value={handles.codechefHandle}
-              onChange={(v) => setHandles({ ...handles, codechefHandle: v })}
-              onCheck={() => handleCheck("codechef")}
-              status={validationStatus.codechef}
-              message={validationMessage.codechef}
-            />
-
-            <div className="pt-4">
-              <button
-                type="submit"
-                disabled={syncing}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-              >
-                {syncing ? (
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <Loader2 size={18} className="animate-spin" />
-                    SAVING & SYNCING...
-                  </span>
-                ) : (
-                  "READY TO ROLL →"
-                )}
-              </button>
-
-              <p className="text-center text-[10px] text-gray-600 font-bold uppercase tracking-widest mt-4">
-                You can update handles later from profile settings
-              </p>
-            </div>
-          </form>
+          <button
+            type="button"
+            onClick={onSync}
+            disabled={isBusy}
+            className="app-btn-primary px-3 py-2 text-[10px] uppercase tracking-widest"
+          >
+            {currentState === "syncing" || currentState === "saving" ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : currentState === "synced" ? (
+              <CheckCircle2 size={12} />
+            ) : (
+              <RefreshCw size={12} />
+            )}
+            {currentState === "synced" ? "Synced" : "Sync"}
+          </button>
         </div>
       </div>
     </div>
   );
 };
 
-const OnboardingField = ({
-  icon,
-  label,
-  placeholder,
-  value,
-  onChange,
-  onCheck,
-  status,
-  message,
-  required = false,
-}) => (
-  <div className="space-y-1.5">
-    <div className="flex items-center justify-between gap-4">
-      <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-        <span className="text-gray-600">{icon}</span>
-        {label} {required && "*"}
-      </label>
+const SmallStat = ({ label, value }) => (
+  <div className="app-card p-3">
+    <p className="text-xl font-black tracking-tight">{value}</p>
+    <p className="text-[9px] text-[var(--app-muted)] font-black uppercase tracking-widest mt-0.5">
+      {label}
+    </p>
+  </div>
+);
 
-      <button
-        type="button"
-        onClick={onCheck}
-        className={`text-[10px] font-black uppercase tracking-[0.2em] px-3 py-2 rounded-full transition-all ${
-          status === "valid"
-            ? "bg-emerald-500 text-white"
-            : status === "invalid"
-            ? "bg-red-500 text-white"
-            : status === "validating"
-            ? "bg-gray-800 text-gray-300"
-            : "bg-gray-800 text-gray-200 hover:bg-blue-600 hover:text-white"
-        }`}
-      >
-        {status === "valid" && (
-          <span className="inline-flex items-center gap-1">
-            <CheckCircle size={12} /> OK
-          </span>
-        )}
-
-        {status === "invalid" && (
-          <span className="inline-flex items-center gap-1">
-            <XCircle size={12} /> Bad
-          </span>
-        )}
-
-        {status === "validating" && (
-          <span className="inline-flex items-center gap-1">
-            <Loader2 size={12} className="animate-spin" /> Checking
-          </span>
-        )}
-
-        {!status && "Check"}
-      </button>
-    </div>
-
-    <input
-      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3.5 text-white text-sm focus:border-blue-500 outline-none transition-all placeholder:text-gray-700"
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      required={required}
-    />
-
-    {message && (
-      <p
-        className={`flex items-center gap-1 text-[10px] mt-1 ${
-          status === "valid"
-            ? "text-emerald-400"
-            : status === "invalid"
-            ? "text-red-400"
-            : "text-gray-400"
-        }`}
-      >
-        {status === "valid" && <CheckCircle size={12} />}
-        {status === "invalid" && <XCircle size={12} />}
-        {message}
-      </p>
-    )}
+const Benefit = ({ text }) => (
+  <div className="flex items-start gap-2">
+    <Zap size={12} className="text-[var(--app-accent)] shrink-0 mt-1" />
+    <p className="text-xs text-[var(--app-muted)] leading-5">{text}</p>
   </div>
 );
 

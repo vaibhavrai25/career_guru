@@ -1,206 +1,503 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
-import api from "../api/axios";
-import { 
-  FileSearch, ShieldCheck, Activity, Target, Zap, CheckCircle2, 
-  HelpCircle, Terminal, Fingerprint, Scan, BarChart3, Microscope, Cpu
+import {
+  getResumeDocuments,
+  getResumeAnalysisByResumeId,
+  deleteResumeDocument,
+} from "../api/resume";
+import {
+  AlertTriangle,
+  BarChart3,
+  BriefcaseBusiness,
+  Building2,
+  CheckCircle2,
+  Clock,
+  Eye,
+  FileText,
+  Plus,
+  RefreshCw,
+  Target,
+  Trash2,
+  UploadCloud,
+  Zap,
+  X,
+  ShieldAlert,
+  Loader2,
 } from "lucide-react";
-import { 
-  Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer
-} from 'recharts';
 
-const MetricBox = ({ label, value, trend, icon: Icon, color }) => (
-  <div className="bg-zinc-900/60 border border-white/[0.03] p-4 rounded-xl relative overflow-hidden shadow-inner flex flex-col justify-between group hover:border-blue-500/20 transition-all">
-    <div className="flex justify-between items-start">
-      <div className={`p-1.5 rounded-lg bg-zinc-800/80 ${color} border border-white/[0.05]`}>
-        <Icon size={12} />
+const StatusPill = ({ status }) => {
+  const classes = {
+    analyzed: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    parsed: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    uploaded: "bg-zinc-800 text-zinc-400 border-white/[0.05]",
+    error: "bg-red-500/10 text-red-400 border-red-500/20",
+  };
+
+  return (
+    <span
+      className={`px-3 py-1 rounded-full border text-[8px] font-black uppercase tracking-widest ${
+        classes[status] || classes.uploaded
+      }`}
+    >
+      {status || "uploaded"}
+    </span>
+  );
+};
+
+const ScoreBox = ({ label, value, icon: Icon }) => (
+  <div className="rounded-2xl bg-black/20 border border-white/[0.04] p-3">
+    <div className="flex items-center justify-between gap-2">
+      <div>
+        <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">
+          {label}
+        </p>
+        <p className="text-xl text-white font-black italic leading-none mt-1">
+          {value === null || value === undefined ? "--" : `${value}%`}
+        </p>
       </div>
-      <div className="text-right">
-        <p className="text-[7px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-1">{label}</p>
-        <p className="text-2xl font-black text-white italic leading-none tracking-tighter">{value}</p>
-      </div>
-    </div>
-    <div className="mt-3 flex items-center gap-2">
-      <div className="h-[1px] flex-1 bg-white/[0.05]"></div>
-      <p className="text-[7px] font-black text-zinc-700 uppercase tracking-widest">{trend}</p>
+      <Icon size={15} className="text-blue-500" />
     </div>
   </div>
 );
 
-const ResumeAnalyzer = () => {
-  const [file, setFile] = useState(null);
-  const [analysis, setAnalysis] = useState(null);
-  const [uploading, setUploading] = useState(false);
+const VaultStat = ({ title, value, icon: Icon }) => (
+  <div className="rounded-3xl border border-white/[0.04] bg-zinc-900/40 p-5 shadow-xl">
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <p className="text-[8px] text-zinc-600 font-black uppercase tracking-widest">
+          {title}
+        </p>
+        <p className="text-3xl text-white font-black italic tracking-tighter mt-2">
+          {value}
+        </p>
+      </div>
 
-  const handleUpload = async (e) => {
-    e.preventDefault(); // Stop default browser behavior
-    if (!file) return alert("Bhai, pehle file inject karo!");
+      <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+        <Icon size={18} />
+      </div>
+    </div>
+  </div>
+);
 
-    const formData = new FormData();
-    formData.append("resume", file);
-    setUploading(true);
+const ResumeCard = ({ doc, analysis, onOpen, onDelete }) => {
+  const latest = analysis || null;
 
-    try {
-      const res = await api.post("/resume/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      });
-      setAnalysis(res.data);
-    } catch (err) { 
-      console.error(err);
-      alert("Telemetry link broken."); 
-    } finally { 
-      setUploading(false); 
-    }
-  };
-
-  if (uploading) return (
-    <div className="h-screen flex items-center justify-center bg-[#060606]">
-      <div className="flex flex-col items-center gap-6">
-        <div className="w-32 h-[1px] bg-zinc-800 relative overflow-hidden">
-          <div className="absolute inset-0 bg-blue-600 animate-loading-bar"></div>
+  return (
+    <div className="rounded-3xl border border-white/[0.04] bg-zinc-900/40 p-6 hover:border-blue-500/30 transition-all shadow-xl flex flex-col">
+      <div className="flex items-start justify-between gap-4 mb-5">
+        <div className="min-w-0">
+          <h2 className="text-lg text-white font-black uppercase italic tracking-tight truncate">
+            {doc.resumeName || "Untitled Resume"}
+          </h2>
+          <p className="text-[10px] text-zinc-600 mt-1 truncate">
+            {doc.originalFileName || "PDF Resume"}
+          </p>
         </div>
-        <p className="text-zinc-600 font-black text-[9px] tracking-[0.5em] uppercase">Scanning Neural Document...</p>
+
+        <StatusPill status={doc.status} />
+      </div>
+
+      <div className="space-y-3 mb-5">
+        <div className="flex items-center gap-3 text-sm text-zinc-400">
+          <BriefcaseBusiness size={15} className="text-blue-500 shrink-0" />
+          <span className="truncate">{doc.targetRole || "No target role"}</span>
+        </div>
+
+        <div className="flex items-center gap-3 text-sm text-zinc-400">
+          <Building2 size={15} className="text-emerald-500 shrink-0" />
+          <span className="truncate">
+            {doc.targetCompany || "No target company"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3 text-sm text-zinc-500">
+          <Clock size={15} className="shrink-0" />
+          <span>
+            Uploaded{" "}
+            {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : "N/A"}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-5">
+        <ScoreBox label="ATS" value={latest?.ats_score} icon={Target} />
+        <ScoreBox label="Ready" value={latest?.readiness_score} icon={Zap} />
+        <ScoreBox label="JD Match" value={latest?.jd_match_score} icon={BarChart3} />
+      </div>
+
+      {latest?.summary ? (
+        <p className="text-xs text-zinc-500 leading-5 line-clamp-3 mb-5">
+          {latest.summary}
+        </p>
+      ) : (
+        <p className="text-xs text-zinc-700 leading-5 mb-5">
+          No saved analysis yet. Open this resume and run analysis.
+        </p>
+      )}
+
+      {doc.error && (
+        <p className="mb-4 text-xs text-red-400 line-clamp-2">{doc.error}</p>
+      )}
+
+      <div className="mt-auto flex gap-3">
+        <button
+          type="button"
+          onClick={() => onOpen(doc)}
+          className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all"
+        >
+          <Eye size={14} />
+          View Analysis
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onDelete(doc)}
+          className="px-4 py-3 rounded-2xl bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white transition-all"
+        >
+          <Trash2 size={14} />
+        </button>
       </div>
     </div>
   );
+};
+
+const DeleteResumeModal = ({
+  open,
+  resume,
+  deleting,
+  onClose,
+  onConfirm,
+}) => {
+  if (!open || !resume) return null;
+
+  return (
+    <div className="fixed inset-0 z-[999] flex items-center justify-center px-4">
+      <div
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={deleting ? undefined : onClose}
+      />
+
+      <div className="relative w-full max-w-md rounded-[2rem] border border-red-500/20 bg-zinc-950 shadow-2xl shadow-red-950/30 overflow-hidden">
+        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-500" />
+
+        <div className="p-6">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400">
+                <ShieldAlert size={22} />
+              </div>
+
+              <div>
+                <p className="text-[9px] text-red-400 font-black uppercase tracking-[0.35em]">
+                  Confirm Deletion
+                </p>
+                <h2 className="text-xl text-white font-black uppercase italic tracking-tight mt-1">
+                  Delete Resume?
+                </h2>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={deleting}
+              className="p-2 rounded-xl text-zinc-500 hover:text-white hover:bg-white/5 transition-all disabled:opacity-40"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="rounded-2xl bg-black/30 border border-white/[0.05] p-4 mb-5">
+            <p className="text-sm text-zinc-300 font-bold truncate">
+              {resume.resumeName || "Untitled Resume"}
+            </p>
+            <p className="text-xs text-zinc-600 mt-1 truncate">
+              {resume.originalFileName || "PDF Resume"}
+            </p>
+
+            <div className="flex flex-wrap gap-2 mt-3">
+              {resume.targetRole && (
+                <span className="px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[8px] font-black uppercase tracking-widest">
+                  {resume.targetRole}
+                </span>
+              )}
+
+              {resume.targetCompany && (
+                <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase tracking-widest">
+                  {resume.targetCompany}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <p className="text-sm text-zinc-400 leading-6">
+            This will permanently remove the resume and all saved analysis
+            results linked to it. This action cannot be undone.
+          </p>
+
+          <div className="flex gap-3 mt-7">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={deleting}
+              className="flex-1 px-5 py-3 rounded-2xl bg-zinc-900 text-zinc-300 border border-white/[0.06] text-[10px] font-black uppercase tracking-widest hover:bg-zinc-800 transition-all disabled:opacity-40"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={deleting}
+              className="flex-1 px-5 py-3 rounded-2xl bg-red-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-red-500 transition-all disabled:opacity-40"
+            >
+              {deleting ? (
+                <span className="inline-flex items-center justify-center gap-2">
+                  <Loader2 size={14} className="animate-spin" />
+                  Deleting
+                </span>
+              ) : (
+                "Delete Resume"
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Resume = () => {
+  const navigate = useNavigate();
+
+  const [documents, setDocuments] = useState([]);
+  const [analysisMap, setAnalysisMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [resumeToDelete, setResumeToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const stats = useMemo(() => {
+    const analyses = Object.values(analysisMap).filter(Boolean);
+
+    if (!analyses.length) {
+      return {
+        total: documents.length,
+        analyzed: documents.filter((doc) => doc.status === "analyzed").length,
+        avgAts: "--",
+        avgReady: "--",
+      };
+    }
+
+    const avg = (key) =>
+      Math.round(
+        analyses.reduce((sum, item) => sum + Number(item?.[key] || 0), 0) /
+          analyses.length
+      );
+
+    return {
+      total: documents.length,
+      analyzed: analyses.length,
+      avgAts: `${avg("ats_score")}%`,
+      avgReady: `${avg("readiness_score")}%`,
+    };
+  }, [documents, analysisMap]);
+
+  const loadDocuments = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const data = await getResumeDocuments();
+      const docs = data?.data || [];
+
+      setDocuments(docs);
+
+      const entries = await Promise.all(
+        docs.map(async (doc) => {
+          try {
+            const analysisData = await getResumeAnalysisByResumeId(doc._id);
+            const latest = analysisData?.data?.[0] || null;
+            return [doc._id, latest];
+          } catch (err) {
+            return [doc._id, null];
+          }
+        })
+      );
+
+      setAnalysisMap(Object.fromEntries(entries));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load resume vault.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
+
+  const openDeleteModal = (doc) => {
+    setResumeToDelete(doc);
+    setDeleteModalOpen(true);
+    setNotice("");
+    setError("");
+  };
+
+  const closeDeleteModal = () => {
+    if (deleting) return;
+    setDeleteModalOpen(false);
+    setResumeToDelete(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!resumeToDelete?._id) return;
+
+    setDeleting(true);
+    setError("");
+    setNotice("");
+
+    try {
+      await deleteResumeDocument(resumeToDelete._id);
+      setNotice("Resume deleted successfully.");
+      setDeleteModalOpen(false);
+      setResumeToDelete(null);
+      await loadDocuments();
+    } catch (err) {
+      setError(err.response?.data?.message || "Delete failed.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleOpen = (doc) => {
+    navigate(`/resume/${doc._id}`);
+  };
 
   return (
     <MainLayout>
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 animate-fadeIn">
-        
-        {/* HUD CONTROL */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
-          <div className="lg:col-span-4 flex items-center gap-4">
-            <div className="p-3 bg-blue-600/10 rounded-2xl border border-blue-500/20">
-              <Fingerprint size={24} className="text-blue-500" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-white uppercase italic leading-none tracking-tighter">RESUME-INTEL <span className="text-blue-600">v4.0</span></h1>
-              <p className="text-[8px] font-black text-zinc-500 uppercase tracking-[0.4em] mt-1 flex items-center gap-2"><Terminal size={10} /> Neural Diagnostic Ready</p>
-            </div>
+      <div className="space-y-6">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
+          <div>
+            <p className="text-[9px] text-blue-500 font-black uppercase tracking-[0.45em]">
+              Resume Intelligence
+            </p>
+            <h1 className="text-4xl font-black text-white uppercase italic tracking-tighter">
+              Resume Vault
+            </h1>
+            <p className="text-sm text-zinc-500 mt-2">
+              All your role/company-specific resumes in one place. Open any resume
+              to view its full AI analysis.
+            </p>
           </div>
 
-          <div className="lg:col-span-8 flex justify-end gap-3">
-             {/* 1. SEPARATE FILE PICKER AREA */}
-             <label className="flex items-center gap-3 bg-zinc-900/60 p-2 px-6 rounded-xl border border-white/[0.05] cursor-pointer hover:bg-zinc-800/40 transition-all">
-                <FileSearch size={14} className="text-zinc-500" />
-                <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest truncate max-w-[180px]">
-                  {file ? file.name : "1. INJECT PDF"}
-                </span>
-                <input type="file" accept=".pdf" onChange={(e) => setFile(e.target.files[0])} className="hidden" />
-             </label>
-
-             {/* 2. SCAN BUTTON LOGICALLY SEPARATE */}
-             <button 
-                onClick={handleUpload} 
-                disabled={!file}
-                className={`px-8 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[9px] font-black uppercase rounded-lg transition-all shadow-lg active:scale-95 ${!file ? 'opacity-30' : ''}`}
-             >
-                {analysis ? "RE-AUDIT" : "2. EXECUTE SCAN"}
-             </button>
-          </div>
+          <Link
+            to="/resume/upload"
+            className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all"
+          >
+            <UploadCloud size={16} />
+            Upload New Resume
+          </Link>
         </div>
 
-        {analysis ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            {/* LEFT COLUMN: VITALS */}
-            <div className="lg:col-span-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <MetricBox label="ATS READINESS" value={`${analysis.ats_score}%`} trend="OPTIMIZED" icon={Target} color="text-emerald-500" />
-                <MetricBox label="IMPACT INDEX" value={analysis.impact_score} trend="ELITE TIER" icon={Zap} color="text-blue-500" />
-              </div>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <VaultStat title="Total Resumes" value={stats.total} icon={FileText} />
+          <VaultStat title="Analyzed" value={stats.analyzed} icon={CheckCircle2} />
+          <VaultStat title="Avg ATS" value={stats.avgAts} icon={Target} />
+          <VaultStat title="Avg Readiness" value={stats.avgReady} icon={Zap} />
+        </div>
 
-              <div className="bg-zinc-900/30 rounded-2xl border border-white/[0.04] p-6 relative overflow-hidden shadow-2xl">
-                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Scan size={100} /></div>
-                <h2 className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] mb-8 flex items-center gap-2">
-                  <div className="w-1 h-3 bg-blue-500 rounded-full"></div> Structural Telemetry
-                </h2>
-                <div className="space-y-6">
-                  {Object.entries(analysis.structural_telemetry).map(([key, val], i) => (
-                    <div key={i} className="space-y-2">
-                      <div className="flex justify-between text-[8px] font-black uppercase text-zinc-600 tracking-tighter">
-                        <span>{key.replace('_', ' ')}</span>
-                        <span>{val}%</span>
-                      </div>
-                      <div className="h-[2px] w-full bg-zinc-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-600" style={{ width: `${val}%` }}></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT COLUMN: INTELLIGENCE */}
-            <div className="lg:col-span-8 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-zinc-900/30 rounded-2xl border border-white/[0.04] p-6 shadow-2xl h-[380px] flex flex-col relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-5"><Microscope size={120} /></div>
-                  <h2 className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] mb-4">Neural Market Alignment</h2>
-                  <div className="flex-1 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart data={analysis.market_gap}>
-                        <PolarGrid stroke="#18181b" />
-                        <PolarAngleAxis dataKey="subject" tick={{ fill: '#3f3f46', fontSize: 8, fontWeight: '900' }} />
-                        <Radar name="You" dataKey="A" stroke="#2563eb" fill="#2563eb" fillOpacity={0.1} strokeWidth={2} />
-                        <Radar name="Benchmark" dataKey="B" stroke="#ef4444" fill="transparent" strokeWidth={1} strokeDasharray="4 4" />
-                      </RadarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div className="bg-zinc-900/30 rounded-2xl border border-white/[0.04] p-6 shadow-2xl h-[380px] flex flex-col">
-                  <h2 className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.4em] mb-4 flex justify-between items-center">
-                    <span>Predictive Grill Questions</span>
-                    <HelpCircle size={12} className="text-blue-500" />
-                  </h2>
-                  <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pr-2 mt-4">
-                    {analysis.grill_questions.map((q, i) => (
-                      <div key={i} className="p-4 bg-zinc-800/40 rounded-xl border-l border-blue-600/50 group hover:bg-zinc-800 transition-all">
-                        <p className="text-[10px] text-zinc-300 font-medium italic opacity-80 group-hover:opacity-100">"{q}"</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-zinc-900/30 rounded-2xl border border-white/[0.04] overflow-hidden shadow-2xl">
-                 <div className="p-4 px-8 border-b border-white/[0.02] bg-zinc-800/10 flex justify-between items-center">
-                    <h2 className="text-[9px] font-black text-zinc-400 uppercase tracking-[0.4em]">Directives for Refactoring</h2>
-                    <Zap size={14} className="text-yellow-500 animate-pulse" />
-                 </div>
-                 <div className="p-1">
-                    {analysis.suggestions.map((s, i) => (
-                      <div key={i} className="flex items-center justify-between p-3 px-6 hover:bg-zinc-800/40 rounded-xl transition-all group">
-                         <div className="flex items-center gap-4 flex-1 truncate">
-                            <div className="w-1 h-1 bg-blue-600 rounded-full shrink-0"></div>
-                            <p className="text-[11px] font-bold text-zinc-300 truncate uppercase italic leading-none">{s}</p>
-                         </div>
-                         <button className="text-[8px] font-black text-blue-500 uppercase border border-blue-500/20 px-3 py-1 rounded-md hover:bg-blue-600 hover:text-white">Apply</button>
-                      </div>
-                    ))}
-                 </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* EMPTY STATE */
-          <div className="h-[650px] flex flex-col items-center justify-center border border-dashed border-white/[0.05] rounded-[4rem] bg-zinc-900/10 relative overflow-hidden group">
-             <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none grid grid-cols-6 gap-4 p-10">
-               {[...Array(24)].map((_, i) => <Terminal key={i} size={40} />)}
-             </div>
-             <div className="relative z-10 flex flex-col items-center">
-                <div className="p-12 bg-zinc-800/30 rounded-full border border-white/[0.05] mb-8 shadow-2xl group-hover:scale-110 transition-transform">
-                   <Cpu size={64} className="text-zinc-700 animate-pulse" />
-                </div>
-                <p className="text-[12px] font-black text-zinc-600 uppercase tracking-[0.8em] mb-3">Neural Linkage Offline</p>
-                <p className="text-[9px] text-zinc-800 font-black uppercase">Awaiting Document Asset Injection</p>
-             </div>
+        {notice && (
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300 flex items-center gap-2">
+            <CheckCircle2 size={16} />
+            {notice}
           </div>
         )}
+
+        {error && (
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300 flex items-center gap-2">
+            <AlertTriangle size={16} />
+            {error}
+          </div>
+        )}
+
+        <div className="flex justify-between items-center">
+          <h2 className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.35em]">
+            Saved Resume Cards
+          </h2>
+
+          <button
+            type="button"
+            onClick={loadDocuments}
+            disabled={loading}
+            className="inline-flex items-center gap-2 text-zinc-500 hover:text-blue-400 text-xs font-bold uppercase tracking-widest disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="h-72 flex items-center justify-center rounded-3xl border border-white/[0.04] bg-zinc-900/30">
+            <RefreshCw size={28} className="animate-spin text-blue-500" />
+          </div>
+        ) : documents.length === 0 ? (
+          <div className="h-96 flex flex-col items-center justify-center rounded-3xl border border-dashed border-white/[0.08] bg-zinc-900/20 text-center">
+            <FileText size={56} className="text-zinc-700 mb-5" />
+            <h2 className="text-xl text-white font-black uppercase italic">
+              No resumes uploaded
+            </h2>
+            <p className="text-sm text-zinc-500 mt-2 max-w-md">
+              Upload your first resume and the analysis page will open
+              automatically.
+            </p>
+            <Link
+              to="/resume/upload"
+              className="mt-6 px-6 py-3 rounded-2xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-500"
+            >
+              Upload Resume
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 xl:grid-cols-3 md:grid-cols-2 gap-5">
+              {documents.map((doc) => (
+                <ResumeCard
+                  key={doc._id}
+                  doc={doc}
+                  analysis={analysisMap[doc._id]}
+                  onOpen={handleOpen}
+                  onDelete={openDeleteModal}
+                />
+              ))}
+            </div>
+
+            <div className="flex justify-center pt-4">
+              <Link
+                to="/resume/upload"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all"
+              >
+                <Plus size={16} />
+                Add Another Resume
+              </Link>
+            </div>
+          </>
+        )}
       </div>
+
+      <DeleteResumeModal
+        open={deleteModalOpen}
+        resume={resumeToDelete}
+        deleting={deleting}
+        onClose={closeDeleteModal}
+        onConfirm={confirmDelete}
+      />
     </MainLayout>
   );
 };
 
-export default ResumeAnalyzer;
+export default Resume;

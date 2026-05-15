@@ -23,7 +23,7 @@ const studyTopicSchema = new mongoose.Schema(
 
     category: {
       type: String,
-      enum: ["dsa", "development", "core"],
+      enum: ["dsa", "development", "core", "resume", "system-design", "mixed"],
       default: "dsa",
     },
 
@@ -36,8 +36,26 @@ const studyTopicSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+
+    masteryScore: {
+      type: Number,
+      default: 0,
+    },
+
+    weaknessReason: {
+      type: String,
+      default: "",
+    },
+
+    lastPracticedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
+
+studyTopicSchema.index({ userId: 1, category: 1 });
+studyTopicSchema.index({ studyPlanId: 1, name: 1 });
 
 module.exports = mongoose.model("StudyTopic", studyTopicSchema);

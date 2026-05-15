@@ -1,29 +1,60 @@
-import { createContext, useState, useEffect } from "react";
+import { createContext, useEffect, useMemo, useState } from "react";
 
-export const ThemeContext = createContext();
+export const ThemeContext = createContext({
+  darkMode: true,
+  theme: "dark",
+  setTheme: () => {},
+  toggleTheme: () => {},
+});
+
+const getInitialTheme = () => {
+  if (typeof window === "undefined") return "dark";
+
+  const savedTheme = localStorage.getItem("theme");
+
+  if (savedTheme === "dark" || savedTheme === "light") {
+    return savedTheme;
+  }
+
+  const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches;
+
+  return prefersDark ? "dark" : "dark";
+};
 
 export const ThemeProvider = ({ children }) => {
-  const [darkMode, setDarkMode] = useState(() => {
-    // Check localStorage or system preference on initial load
-    const savedTheme = localStorage.getItem("theme");
-    return savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
-  });
+  const [theme, setThemeState] = useState(getInitialTheme);
+
+  const darkMode = theme === "dark";
 
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  }, [darkMode]);
+    const root = document.documentElement;
 
-  const toggleTheme = () => setDarkMode(!darkMode);
+    root.classList.toggle("dark", darkMode);
+    root.dataset.theme = theme;
+
+    localStorage.setItem("theme", theme);
+  }, [theme, darkMode]);
+
+  const setTheme = (nextTheme) => {
+    if (nextTheme !== "dark" && nextTheme !== "light") return;
+    setThemeState(nextTheme);
+  };
+
+  const toggleTheme = () => {
+    setThemeState((current) => (current === "dark" ? "light" : "dark"));
+  };
+
+  const value = useMemo(
+    () => ({
+      darkMode,
+      theme,
+      setTheme,
+      toggleTheme,
+    }),
+    [darkMode, theme]
+  );
 
   return (
-    <ThemeContext.Provider value={{ darkMode, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   );
 };

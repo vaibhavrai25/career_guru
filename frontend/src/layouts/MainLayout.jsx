@@ -1,88 +1,282 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useContext } from "react";
+import { useContext, useMemo, useState } from "react";
 import { ThemeContext } from "../context/ThemeContext";
 import { AuthContext } from "../context/AuthContext";
-import { User as UserIcon, LayoutDashboard, BarChart2, BookOpen, FileText, Settings } from "lucide-react";
+import {
+  BarChart2,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Moon,
+  Settings,
+  Sun,
+  User as UserIcon,
+  X,
+} from "lucide-react";
+
+const navItems = [
+  {
+    to: "/dashboard",
+    label: "Dashboard",
+    short: "Home",
+    icon: LayoutDashboard,
+  },
+  {
+    to: "/coding",
+    label: "Coding Stats",
+    short: "Coding",
+    icon: BarChart2,
+  },
+  {
+    to: "/study",
+    label: "Study Plan",
+    short: "Study",
+    icon: BookOpen,
+  },
+  {
+    to: "/resume",
+    label: "Resume",
+    short: "Resume",
+    icon: FileText,
+  },
+  {
+    to: "/profile",
+    label: "Profile",
+    short: "Profile",
+    icon: Settings,
+  },
+];
 
 const MainLayout = ({ children }) => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+
   const { darkMode, toggleTheme } = useContext(ThemeContext);
   const { user, logout } = useContext(AuthContext);
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  const activeLabel = useMemo(() => {
+    const exact = navItems.find((item) => item.to === pathname);
+    if (exact) return exact.label;
+
+    if (pathname.startsWith("/resume")) return "Resume";
+    if (pathname.startsWith("/study")) return "Study Plan";
+    if (pathname.startsWith("/coding")) return "Coding Stats";
+    if (pathname.startsWith("/dashboard")) return "Dashboard";
+
+    return "Command Center";
+  }, [pathname]);
 
   const handleLogout = () => {
     logout();
     navigate("/login");
   };
 
-  const navItem = (to, label, icon) => (
-    <Link to={to} key={to}>
-      <div
-        className={`p-3 rounded-xl flex items-center gap-3 cursor-pointer transition-all duration-200 ${
-          pathname === to
-            ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30 font-semibold"
-            : "hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400"
-        }`}
-      >
-        {icon}
-        {label}
+  const isActiveRoute = (to) => {
+    if (to === "/dashboard") return pathname === "/dashboard";
+    return pathname === to || pathname.startsWith(`${to}/`);
+  };
+
+  const sidebarWidth = collapsed ? "lg:w-[84px]" : "lg:w-[272px]";
+
+  const SidebarContent = () => (
+    <div className="flex h-full flex-col">
+      <div className="h-16 flex items-center justify-between gap-3 px-4 border-b border-[var(--app-border)]">
+        <Link to="/dashboard" className="flex items-center gap-3 min-w-0">
+          <div className="h-9 w-9 rounded-xl bg-[var(--app-accent)] text-zinc-950 flex items-center justify-center font-black shadow-sm shrink-0">
+            CG
+          </div>
+
+          {!collapsed && (
+            <div className="min-w-0">
+              <p className="text-sm font-black tracking-tight text-[var(--app-text)] truncate">
+                Career Guru
+              </p>
+              <p className="text-[10px] font-bold text-[var(--app-faint)] uppercase tracking-[0.18em] truncate">
+                Prep Workspace
+              </p>
+            </div>
+          )}
+        </Link>
+
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(false)}
+          className="lg:hidden p-2 rounded-xl hover:bg-[var(--app-surface-2)] text-[var(--app-muted)]"
+        >
+          <X size={18} />
+        </button>
       </div>
-    </Link>
+
+      <nav className="flex-1 px-3 py-4 space-y-1.5">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const active = isActiveRoute(item.to);
+
+          return (
+            <Link
+              to={item.to}
+              key={item.to}
+              onClick={() => setSidebarOpen(false)}
+              className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${
+                active
+                  ? "bg-[var(--app-accent)] text-zinc-950 shadow-sm"
+                  : "text-[var(--app-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface-2)]"
+              }`}
+              title={collapsed ? item.label : undefined}
+            >
+              <Icon
+                size={18}
+                className={active ? "text-zinc-950" : "text-inherit"}
+              />
+
+              {!collapsed && (
+                <span className="text-sm font-bold truncate">{item.label}</span>
+              )}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="px-3 pb-3 hidden lg:block">
+        <button
+          type="button"
+          onClick={() => setCollapsed((value) => !value)}
+          className="w-full flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-[var(--app-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface-2)] transition-all"
+        >
+          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          {!collapsed && (
+            <span className="text-xs font-black uppercase tracking-widest">
+              Collapse
+            </span>
+          )}
+        </button>
+      </div>
+
+      <div className="border-t border-[var(--app-border)] p-3">
+        <Link
+          to="/profile"
+          onClick={() => setSidebarOpen(false)}
+          className={`flex items-center gap-3 rounded-xl p-2.5 hover:bg-[var(--app-surface-2)] transition-all ${
+            collapsed ? "justify-center" : ""
+          }`}
+        >
+          <div className="h-10 w-10 rounded-full bg-[var(--app-surface-2)] border border-[var(--app-border)] flex items-center justify-center text-[var(--app-text)] font-black overflow-hidden shrink-0">
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt="Profile"
+                className="h-full w-full object-cover"
+              />
+            ) : user?.name ? (
+              user.name.charAt(0).toUpperCase()
+            ) : (
+              <UserIcon size={18} />
+            )}
+          </div>
+
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-black text-[var(--app-text)] truncate">
+                {user?.name || "User"}
+              </p>
+              <p className="text-[10px] text-[var(--app-faint)] truncate">
+                {user?.email || "No email"}
+              </p>
+            </div>
+          )}
+        </Link>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className={`mt-2 w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-red-500 hover:bg-red-500/10 transition-all ${
+            collapsed ? "justify-center" : ""
+          }`}
+          title={collapsed ? "Logout" : undefined}
+        >
+          <LogOut size={17} />
+          {!collapsed && (
+            <span className="text-xs font-black uppercase tracking-widest">
+              Logout
+            </span>
+          )}
+        </button>
+      </div>
+    </div>
   );
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
-      {/* Sidebar */}
-      <div className="w-64 bg-white dark:bg-gray-800 shadow-xl flex flex-col border-r dark:border-gray-700">
-        <div className="p-6 text-2xl font-black border-b dark:border-gray-700 text-blue-600 dark:text-blue-400 flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white text-sm">CG</div>
-          Career Guru
-        </div>
+    <div className="app-shell min-h-screen">
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
-        <nav className="p-4 space-y-2 flex-1">
-          {navItem("/", "Dashboard", <LayoutDashboard size={18}/>)}
-          {navItem("/coding", "Coding Stats", <BarChart2 size={18}/>)}
-          {navItem("/study", "Study Plan", <BookOpen size={18}/>)}
-          {navItem("/resume", "Resume Analysis", <FileText size={18}/>)}
-          {navItem("/profile", "Profile Settings", <Settings size={18}/>)}
-        </nav>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-[272px] transform border-r border-[var(--app-border)] bg-[var(--app-surface)] transition-transform duration-200 lg:translate-x-0 ${sidebarWidth} ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <SidebarContent />
+      </aside>
 
-        {/* User Profile Section */}
-        <div className="p-4 border-t dark:border-gray-700">
-          <Link to="/profile" className="flex items-center gap-3 mb-4 px-2 hover:bg-gray-50 dark:hover:bg-gray-700 p-2 rounded-lg transition-all group">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-md overflow-hidden">
-              {user?.avatar ? <img src={user.avatar} alt="P" className="w-full h-full object-cover" /> : (user?.name?.charAt(0) || "U")}
+      <div
+        className={`min-h-screen transition-all duration-200 ${
+          collapsed ? "lg:pl-[84px]" : "lg:pl-[272px]"
+        }`}
+      >
+        <header className="sticky top-0 z-30 h-16 border-b border-[var(--app-border)] bg-[color-mix(in_srgb,var(--app-bg)_84%,transparent)] backdrop-blur-xl">
+          <div className="h-full flex items-center justify-between gap-4 px-4 lg:px-7">
+            <div className="flex items-center gap-3 min-w-0">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden p-2 rounded-xl text-[var(--app-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface-2)]"
+              >
+                <Menu size={20} />
+              </button>
+
+              <div className="min-w-0">
+                <p className="text-[10px] text-[var(--app-faint)] font-black uppercase tracking-[0.22em]">
+                  Workspace
+                </p>
+                <h1 className="text-base lg:text-lg app-title truncate">
+                  {activeLabel}
+                </h1>
+              </div>
             </div>
-            <div className="truncate flex-1">
-              <p className="text-sm font-bold dark:text-white group-hover:text-blue-500 transition-colors">{user?.name || "User"}</p>
-              <p className="text-[10px] text-gray-500 truncate">{user?.email}</p>
-            </div>
-          </Link>
-          <button
-            onClick={handleLogout}
-            className="w-full text-left p-3 text-xs font-bold uppercase tracking-widest text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
-          >
-            Logout
-          </button>
-        </div>
-      </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 flex items-center justify-end px-8 bg-white dark:bg-gray-800 border-b dark:border-gray-700">
-          <button
-            onClick={toggleTheme}
-            className="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 hover:ring-2 ring-blue-400 transition-all border dark:border-gray-700 shadow-sm"
-            title="Toggle Dark Mode"
-          >
-            {darkMode ? "☀️" : "🌙"}
-          </button>
+            <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="text-[11px] font-bold text-[var(--app-muted)]">
+                  System live
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="h-10 w-10 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] text-[var(--app-muted)] hover:text-[var(--app-text)] hover:bg-[var(--app-surface-2)] transition-all flex items-center justify-center"
+                title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {darkMode ? <Sun size={17} /> : <Moon size={17} />}
+              </button>
+            </div>
+          </div>
         </header>
 
-        <main className="flex-1 p-8 overflow-y-auto">
-          <div className="max-w-6xl mx-auto">
-            {children}
-          </div>
+        <main className="px-4 py-5 lg:px-7 lg:py-7">
+          <div className="mx-auto w-full max-w-7xl">{children}</div>
         </main>
       </div>
     </div>
