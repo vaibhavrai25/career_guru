@@ -2,23 +2,7 @@ import { useContext } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 import { ThemeContext } from "../context/ThemeContext";
-import {
-  ArrowRight,
-  BarChart3,
-  Brain,
-  CheckCircle2,
-  Code2,
-  FileText,
-  Github,
-  GraduationCap,
-  Moon,
-  Rocket,
-  ShieldCheck,
-  Sparkles,
-  Sun,
-  Target,
-  Trophy,
-  Zap,
+import { ArrowRight, BarChart3, Brain, CheckCircle2, Code2, FileText, Github, GraduationCap, Moon, Rocket, ShieldCheck, Sparkles, Sun, Target, Trophy, Zap,
 } from "lucide-react";
 
 const Home = () => {

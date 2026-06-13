@@ -1,45 +1,11 @@
 import { useEffect, useMemo, useState, useContext } from "react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as ChartTooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
+import {AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, ResponsiveContainer, BarChart, Bar,
 } from "recharts";
 import MainLayout from "../layouts/MainLayout";
 import { AuthContext } from "../context/AuthContext";
-import {
-  getAnalyticsSnapshots,
-  getContestHistory,
-  getDashboard,
-  getDeepGitHubRepos,
-  getSubmissions,
-  getUpcomingContests,
-  syncAllPlatforms,
+import { getAnalyticsSnapshots, getContestHistory, getDashboard, getDeepGitHubRepos, getSubmissions, getUpcomingContests, syncAllPlatforms,
 } from "../api/stats";
-import {
-  Github,
-  ExternalLink,
-  TrendingUp,
-  Calendar,
-  Zap,
-  Globe,
-  ShieldCheck,
-  Target,
-  Cpu,
-  BarChart3,
-  Star,
-  GitFork,
-  Terminal,
-  RefreshCw,
-  Loader2,
-  AlertTriangle,
-  Info,
-  Trophy,
+import { Github, ExternalLink, TrendingUp, Calendar, Zap, Globe, ShieldCheck, Target, Cpu, BarChart3, Star, GitFork, Terminal, RefreshCw, Loader2, AlertTriangle, Info, Trophy,
 } from "lucide-react";
 
 const CompactStat = ({ title, value, subtitle, icon: Icon }) => (
@@ -349,16 +315,8 @@ const CodingStats = () => {
     setError("");
 
     try {
-      const [
-        dashboardData,
-        repoData,
-        submissionData,
-        leetcodeSubmissionData,
-        codeforcesSubmissionData,
-        codechefSubmissionData,
-        contestData,
-        upcomingData,
-        snapshotData,
+      const [ dashboardData, repoData, submissionData, leetcodeSubmissionData, codeforcesSubmissionData, codechefSubmissionData,
+        contestData, upcomingData, snapshotData,
       ] = await Promise.all([
         getDashboard(),
         getDeepGitHubRepos({ limit: 50, sort: "quality" }).catch(() => ({

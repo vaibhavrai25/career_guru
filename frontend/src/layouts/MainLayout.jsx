@@ -2,21 +2,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useContext, useMemo, useState } from "react";
 import { ThemeContext } from "../context/ThemeContext";
 import { AuthContext } from "../context/AuthContext";
-import {
-  BarChart2,
-  BookOpen,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  Moon,
-  Settings,
-  Sun,
-  User as UserIcon,
-  X,
-} from "lucide-react";
+import {BarChart2,BookOpen,ChevronLeft,ChevronRight,FileText,LayoutDashboard,LogOut,Menu,Moon,Settings,Sun,User as UserIcon,X,
+}from "lucide-react";
 
 const navItems = [
   {

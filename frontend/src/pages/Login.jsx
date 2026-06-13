@@ -3,17 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { loginUser } from "../api/auth";
 import { AuthContext } from "../context/AuthContext";
 import { ThemeContext } from "../context/ThemeContext";
-import {
-  AlertCircle,
-  ArrowLeft,
-  ArrowRight,
-  Brain,
-  Loader2,
-  Lock,
-  Mail,
-  Moon,
-  ShieldCheck,
-  Sun,
+import { AlertCircle, ArrowLeft, ArrowRight, Brain, Loader2, Lock, Mail, Moon, ShieldCheck, Sun,
 } from "lucide-react";
 
 const Login = () => {
@@ -184,13 +174,7 @@ const InfoCard = ({ icon: Icon, title }) => (
 );
 
 const Field = ({
-  label,
-  icon: Icon,
-  type,
-  value,
-  onChange,
-  placeholder,
-  required,
+  label, icon: Icon, type, value, onChange, placeholder, required,
 }) => (
   <div>
     <label className="text-[10px] text-[var(--app-muted)] font-black uppercase tracking-widest mb-2 block">

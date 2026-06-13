@@ -2,41 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import { getDashboard, getTodayTasks, syncAllPlatforms } from "../api/stats";
-import {
-  Radar,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
-import {
-  Activity,
-  AlertTriangle,
-  ArrowUpRight,
-  BarChart3,
-  BookOpen,
-  CheckCircle2,
-  ChevronRight,
-  Code2,
-  Flame,
-  Github,
-  GraduationCap,
-  Layers,
-  Loader2,
-  RefreshCw,
-  Sparkles,
-  Target,
-  Trophy,
-  Zap,
+import { Activity, AlertTriangle, ArrowUpRight, BarChart3, BookOpen, CheckCircle2, ChevronRight, Code2, Flame, Github, GraduationCap,
+  Layers, Loader2, RefreshCw, Sparkles, Target, Trophy, Zap
 } from "lucide-react";
 
 const difficultyColors = {

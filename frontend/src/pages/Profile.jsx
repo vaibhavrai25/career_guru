@@ -2,18 +2,7 @@ import { useState, useEffect } from "react";
 import MainLayout from "../layouts/MainLayout";
 import api from "../api/axios";
 import { getDashboard, syncAllPlatforms } from "../api/stats";
-import {
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-  ExternalLink,
-  User,
-  Github,
-  Code,
-  Loader2,
-  AlertCircle,
-  Save,
-} from "lucide-react";
+import {CheckCircle, XCircle, RefreshCw, ExternalLink, User, Github, Code, Loader2, AlertCircle, Save,} from "lucide-react";
 
 const platformConfig = {
   github: {
@@ -39,17 +28,8 @@ const platformConfig = {
 };
 
 const emptyProfile = {
-  name: "",
-  username: "",
-  bio: "",
-  avatar: "",
-  skills: [],
-  leetcodeHandle: "",
-  codeforcesHandle: "",
-  githubHandle: "",
-  codechefHandle: "",
-  linkedinUrl: "",
-  isPublic: false,
+  name: "", username: "", bio: "", avatar: "", skills: [], leetcodeHandle: "", codeforcesHandle: "", githubHandle: "",
+  codechefHandle: "", linkedinUrl: "", isPublic: false,
 };
 
 const Profile = () => {

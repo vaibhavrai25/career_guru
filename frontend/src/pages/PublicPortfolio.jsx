@@ -2,33 +2,8 @@ import { useContext, useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import api from "../api/axios";
 import { ThemeContext } from "../context/ThemeContext";
-import {
-  Github,
-  ExternalLink,
-  Award,
-  Code,
-  Zap,
-  Globe,
-  Share2,
-  ClipboardCheck,
-  Loader2,
-  AlertTriangle,
-  Trophy,
-  Flame,
-  Star,
-  Moon,
-  Sun,
-  BarChart3,
-  GitFork,
-  Eye,
-  CalendarDays,
-  Target,
-  Activity,
-  Sparkles,
-  Brain,
-  Layers,
-  Medal,
-} from "lucide-react";
+import { Github, ExternalLink, Award, Code,Zap,Globe , ClipboardCheck, Loader2, AlertTriangle,  Trophy,Flame, Star, Moon, Sun, BarChart3, GitFork,
+  Eye, CalendarDays, Target, Activity, Sparkles, Brain, Layers, Medal, Share2} from "lucide-react";
 
 const platformLabels = {
   leetcode: "LeetCode",

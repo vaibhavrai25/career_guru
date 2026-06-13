@@ -1,29 +1,9 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axios";
-import {
-  syncLeetCode,
-  syncCodeforces,
-  syncCodechef,
-  syncGitHub,
-} from "../api/stats";
-import {
-  AlertCircle,
-  ArrowRight,
-  CheckCircle2,
-  Code2,
-  ExternalLink,
-  Github,
-  Loader2,
-  RefreshCw,
-  ShieldCheck,
-  SkipForward,
-  Sparkles,
-  Trophy,
-  UserCheck,
-  Utensils,
-  Zap,
-} from "lucide-react";
+import { syncLeetCode, syncCodeforces, syncCodechef, syncGitHub} from "../api/stats";
+import { AlertCircle, ArrowRight, CheckCircle2, Code2, ExternalLink, Github, Loader2, RefreshCw, ShieldCheck,SkipForward,
+  Sparkles, Trophy, UserCheck, Utensils, Zap} from "lucide-react";
 
 const platforms = [
   {

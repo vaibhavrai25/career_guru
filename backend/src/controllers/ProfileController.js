@@ -250,18 +250,24 @@ exports.upsertProfile = async (req, res) => {
       linkedinUrl,
     } = req.body;
 
+    
+
+    // if (!normalizedUsername) {
+    //   return res.status(400).json({
+    //     message: "Username is required",
+    //   });
+    // }
+
     const normalizedUsername = username ? username.toLowerCase().trim() : "";
 
-    if (!normalizedUsername) {
-      return res.status(400).json({
-        message: "Username is required",
+    //  Only look for an existing username if one was actually provided
+    let existing = null;
+    if (normalizedUsername) {
+      existing = await Profile.findOne({
+        username: normalizedUsername,
+        userId: { $ne: req.user._id },
       });
     }
-
-    const existing = await Profile.findOne({
-      username: normalizedUsername,
-      userId: { $ne: req.user._id },
-    });
 
     if (existing) {
       return res.status(400).json({
