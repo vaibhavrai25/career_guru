@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import { getDashboard, getTodayTasks, syncAllPlatforms } from "../api/stats";
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+import {
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
-import { Activity, AlertTriangle, ArrowUpRight, BarChart3, BookOpen, CheckCircle2, ChevronRight, Code2, Flame, Github, GraduationCap,
+import {
+  Activity, AlertTriangle, ArrowUpRight, BarChart3, BookOpen, CheckCircle2, ChevronRight, Code2, Flame, Github, GraduationCap,
   Layers, Loader2, RefreshCw, Sparkles, Target, Trophy, Zap
 } from "lucide-react";
 
@@ -102,18 +104,23 @@ const getCurrentStreak = (data) => {
   );
 };
 
-const getBestRating = (data) => {
-  const platforms = ["leetcode", "codeforces", "codechef"];
+// NEW LOGIC: Intelligent platform rating comparison
+const getStrongestRating = (data) => {
+  const lc = getNumber(getPlatformData(data, "leetcode")?.rating ?? getPlatformData(data, "leetcode")?.currentRating);
+  const cf = getNumber(getPlatformData(data, "codeforces")?.rating ?? getPlatformData(data, "codeforces")?.currentRating);
+  const cc = getNumber(getPlatformData(data, "codechef")?.rating ?? getPlatformData(data, "codechef")?.currentRating);
 
-  return Math.max(
-    0,
-    ...platforms.map((platform) =>
-      getNumber(
-        getPlatformData(data, platform)?.rating ??
-          getPlatformData(data, platform)?.currentRating
-      )
-    )
-  );
+  // CF and CC ratings are mathematically lower than LC for equivalent skill levels. 
+  // Applying heuristic weights to find the true "strongest" performance.
+  const lcWeight = lc;
+  const cfWeight = cf > 0 ? cf + 450 : 0; 
+  const ccWeight = cc > 0 ? cc + 50 : 0; 
+
+  if (lc === 0 && cf === 0 && cc === 0) return { raw: "--", label: "No rating data" };
+
+  if (cfWeight >= lcWeight && cfWeight >= ccWeight) return { raw: cf, label: "Codeforces" };
+  if (ccWeight >= lcWeight && ccWeight >= cfWeight) return { raw: cc, label: "CodeChef" };
+  return { raw: lc, label: "LeetCode" };
 };
 
 const Section = ({ title, subtitle, icon: Icon, right, children, className = "" }) => (
@@ -122,7 +129,7 @@ const Section = ({ title, subtitle, icon: Icon, right, children, className = "" 
   >
     <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-white/[0.04]">
       <div className="min-w-0">
-        <h2 className="text-[10px] text-zinc-400 font-black uppercase tracking-[0.28em] flex items-center gap-2">
+        <h2 className="text-[10px] text-zinc-400 font-black  tracking-[0.28em] flex items-center gap-2">
           {Icon && <Icon size={14} className="text-blue-400" />}
           {title}
         </h2>
@@ -169,7 +176,7 @@ const MetricCard = ({ title, value, subtitle, icon: Icon, tone = "blue", to }) =
       </div>
 
       {subtitle && (
-        <p className="text-[10px] text-zinc-600 mt-4 font-bold uppercase tracking-widest line-clamp-1">
+        <p className="text-[10px] text-zinc-600 mt-4 font-bold  tracking-widest line-clamp-1">
           {subtitle}
         </p>
       )}
@@ -222,11 +229,19 @@ const PlatformCard = ({ platform, data }) => {
         </span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        <MiniValue label="Solved" value={formatCompact(totalSolved)} />
-        <MiniValue label="Rating" value={rating || "--"} />
-        <MiniValue label="Max" value={maxRating || "--"} />
-      </div>
+      {/* NEW LOGIC: Differentiate GitHub metrics from Coding platforms */}
+      {platform === "github" ? (
+        <div className="grid grid-cols-2 gap-2">
+          <MiniValue label="Repos" value={formatCompact(data?.publicRepos ?? data?.repos ?? 0)} />
+          <MiniValue label="Commits" value={formatCompact(data?.commits ?? data?.totalCommits ?? 0)} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          <MiniValue label="Solved" value={formatCompact(totalSolved)} />
+          <MiniValue label="Rating" value={rating || "--"} />
+          <MiniValue label="Max" value={maxRating || "--"} />
+        </div>
+      )}
     </div>
   );
 };
@@ -387,7 +402,7 @@ const Dashboard = () => {
   const totalSolved = useMemo(() => getTotalSolved(data), [data]);
   const readiness = useMemo(() => getReadiness(data), [data]);
   const currentStreak = useMemo(() => getCurrentStreak(data), [data]);
-  const bestRating = useMemo(() => getBestRating(data), [data]);
+  const strongestRating = useMemo(() => getStrongestRating(data), [data]);
 
   const difficultyData = useMemo(() => {
     const lc = getPlatformData(data, "leetcode");
@@ -434,7 +449,7 @@ const Dashboard = () => {
         { subject: "DS", score: Math.min(100, Math.round(totalSolved / 6)) },
         { subject: "Algo", score: Math.min(100, Math.round(totalSolved / 7)) },
         { subject: "Math", score: Math.min(100, Math.round(totalSolved / 10)) },
-        { subject: "CP", score: Math.min(100, Math.round(bestRating / 20)) },
+        { subject: "CP", score: Math.min(100, Math.round((Number(strongestRating.raw) || 0) / 20)) },
       ];
     }
 
@@ -452,20 +467,13 @@ const Dashboard = () => {
         score: Math.min(Math.round(score * 1.4), 100),
       };
     });
-  }, [data, totalSolved, bestRating]);
+  }, [data, totalSolved, strongestRating]);
 
   const weakestTopics = useMemo(() => {
     return Array.isArray(data?.analysis?.weakestTopics)
       ? data.analysis.weakestTopics.slice(0, 4)
       : [];
   }, [data]);
-
-  const strongestTopic = data?.analysis?.strongestTopic || "Not enough data";
-  const weakestTopic = weakestTopics?.[0] || {
-    topic: "No weak topic detected",
-    score: 0,
-    daysIdle: 0,
-  };
 
   const platformCards = useMemo(() => {
     return ["leetcode", "codeforces", "codechef", "github"].map((platform) => ({
@@ -476,7 +484,7 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#09090b]">
+      <div className="h-screen flex items-center justify-center bg-[#09090b]" style={{ fontFamily: '"Saira", sans-serif' }}>
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="animate-spin text-blue-500" size={34} />
           <p className="text-[10px] font-black uppercase tracking-[0.35em] text-zinc-600">
@@ -489,7 +497,8 @@ const Dashboard = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      {/* WRAPPER FOR SAIRA FONT */}
+      <div className="space-y-6" style={{ fontFamily: '"Saira", sans-serif' }}>
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
           <div>
             <p className="text-[9px] text-blue-500 font-black uppercase tracking-[0.45em] flex items-center gap-2">
@@ -553,9 +562,9 @@ const Dashboard = () => {
             to="/coding"
           />
           <MetricCard
-            title="Best Rating"
-            value={bestRating || "--"}
-            subtitle="Current strongest rating signal"
+            title="Strongest Rating"
+            value={strongestRating.raw}
+            subtitle={`Strongest on ${strongestRating.label}`}
             icon={Trophy}
             tone="purple"
             to="/coding"
@@ -588,6 +597,7 @@ const Dashboard = () => {
                         fill: "#a1a1aa",
                         fontSize: 10,
                         fontWeight: 800,
+                        fontFamily: '"Saira", sans-serif'
                       }}
                     />
                     <Radar
@@ -605,6 +615,7 @@ const Dashboard = () => {
                         borderRadius: "12px",
                         fontSize: "12px",
                         color: "#fff",
+                        fontFamily: '"Saira", sans-serif'
                       }}
                     />
                   </RadarChart>
@@ -646,6 +657,7 @@ const Dashboard = () => {
                               borderRadius: "12px",
                               fontSize: "12px",
                               color: "#fff",
+                              fontFamily: '"Saira", sans-serif'
                             }}
                           />
                         </PieChart>
@@ -683,12 +695,14 @@ const Dashboard = () => {
                         fontSize={10}
                         tickLine={false}
                         axisLine={false}
+                        tick={{ fontFamily: '"Saira", sans-serif' }}
                       />
                       <YAxis
                         stroke="#71717a"
                         fontSize={10}
                         tickLine={false}
                         axisLine={false}
+                        tick={{ fontFamily: '"Saira", sans-serif' }}
                       />
                       <Tooltip
                         contentStyle={{
@@ -697,6 +711,7 @@ const Dashboard = () => {
                           borderRadius: "12px",
                           fontSize: "12px",
                           color: "#fff",
+                          fontFamily: '"Saira", sans-serif'
                         }}
                       />
                       <Bar dataKey="solved" fill="#2563eb" radius={[8, 8, 0, 0]} />
@@ -805,67 +820,15 @@ const Dashboard = () => {
           </Section>
         </div>
 
+        {/* RESTRUCTURED: Strategic Advisory removed, Quick Actions expanded */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-          <Section
-            title="Strategic Advisory"
-            subtitle="One clear next move"
-            icon={Sparkles}
-            className="xl:col-span-7"
-          >
-            <div className="rounded-3xl bg-gradient-to-br from-blue-600/10 via-black/20 to-black/10 border border-blue-500/10 p-6">
-              <div className="inline-flex items-center gap-2 bg-blue-500/10 text-blue-400 text-[8px] font-black px-3 py-1.5 rounded-full border border-blue-500/10 uppercase tracking-[0.25em] mb-5">
-                <Sparkles size={10} />
-                AI Recovery Signal
-              </div>
-
-              <h2 className="text-2xl xl:text-3xl text-white font-black italic tracking-tight leading-tight">
-                Focus now:{" "}
-                <span className="text-blue-400">
-                  {weakestTopic.topic || "Study consistency"}
-                </span>
-              </h2>
-
-              <p className="text-sm text-zinc-500 leading-7 mt-3">
-                Your strongest visible area is{" "}
-                <span className="text-white font-bold">{strongestTopic}</span>.
-                The most urgent recovery area is{" "}
-                <span className="text-red-400 font-bold">
-                  {weakestTopic.topic || "not available"}
-                </span>
-                {weakestTopic.daysIdle
-                  ? `, idle for ${weakestTopic.daysIdle} days.`
-                  : "."}{" "}
-                Use Study Plan to generate a short connected mission instead of
-                adding random tasks.
-              </p>
-
-              <div className="flex flex-wrap gap-3 mt-6">
-                <Link
-                  to="/study"
-                  className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all"
-                >
-                  Initialize Protocol
-                  <ArrowUpRight size={14} />
-                </Link>
-
-                <Link
-                  to="/coding"
-                  className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-white/[0.05] text-white border border-white/[0.06] text-[9px] font-black uppercase tracking-widest hover:bg-white/[0.1] transition-all"
-                >
-                  View Coding Data
-                  <ArrowUpRight size={14} />
-                </Link>
-              </div>
-            </div>
-          </Section>
-
           <Section
             title="Quick Actions"
             subtitle="Jump to the right module"
             icon={Zap}
-            className="xl:col-span-5"
+            className="xl:col-span-12"
           >
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
               <QuickAction
                 to="/coding"
                 title="Coding Analytics"

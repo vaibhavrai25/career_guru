@@ -1,4 +1,9 @@
+
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Saira", ui-sans-serif, system-ui, sans-serif;
+}
 
 /* Tailwind v4 dark mode using .dark class */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -26,7 +31,7 @@
   --app-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
 
   font-family:
-    Inter,
+    "Saira",
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -72,7 +77,7 @@ body {
   background: var(--app-bg);
   color: var(--app-text);
   font-family:
-    Inter,
+    "Saira",
     ui-sans-serif,
     system-ui,
     -apple-system,
@@ -434,3 +439,4 @@ html:not(.dark) code {
     background: var(--app-bg);
   }
 }
+

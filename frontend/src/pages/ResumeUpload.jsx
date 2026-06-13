@@ -7,14 +7,14 @@ import {
   ArrowLeft,
   BriefcaseBusiness,
   Building2,
-  FileSearch,
+  FileText,
   Loader2,
-  Sparkles,
+  UploadCloud,
 } from "lucide-react";
 
 const emptyForm = {
   resumeName: "",
-  targetRole: "SDE Intern",
+  targetRole: "Software Engineer Intern",
   targetCompany: "",
   jobDescription: "",
   isPrimary: true,
@@ -30,22 +30,19 @@ const ResumeUpload = () => {
 
   const buildFormData = () => {
     const formData = new FormData();
-
     formData.append("resume", file);
     formData.append("resumeName", form.resumeName);
     formData.append("targetRole", form.targetRole);
     formData.append("targetCompany", form.targetCompany);
     formData.append("jobDescription", form.jobDescription);
     formData.append("isPrimary", String(form.isPrimary));
-
     return formData;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!file) {
-      setError("Select a PDF resume first.");
+      setError("Please select a PDF resume to upload.");
       return;
     }
 
@@ -56,19 +53,14 @@ const ResumeUpload = () => {
       const data = await uploadAndAnalyzeResume(buildFormData());
       const resumeId = data?.document?._id;
 
-      if (!resumeId) {
-        throw new Error("Resume uploaded, but resume ID was not returned.");
-      }
+      if (!resumeId) throw new Error("Document processed, but ID was not returned.");
 
       navigate(`/resume/${resumeId}`, {
         replace: true,
-        state: {
-          freshAnalysis: true,
-          message: "Resume uploaded and analyzed successfully.",
-        },
+        state: { message: "Document uploaded and analyzed successfully." },
       });
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Resume upload/analyze failed.");
+      setError(err.response?.data?.message || err.message || "Failed to process document.");
     } finally {
       setLoading(false);
     }
@@ -76,124 +68,103 @@ const ResumeUpload = () => {
 
   return (
     <MainLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
-        <button
-          onClick={() => navigate("/resume")}
-          className="inline-flex items-center gap-2 text-zinc-500 hover:text-blue-400 text-xs font-bold uppercase tracking-widest"
-        >
-          <ArrowLeft size={14} />
-          Back to Resume Vault
-        </button>
-
+      <div className="max-w-3xl mx-auto px-6 py-8 space-y-8 animate-fadeIn">
+        
+        {/* Navigation & Header */}
         <div>
-          <p className="text-[9px] text-blue-500 font-black uppercase tracking-[0.45em]">
-            Resume Intelligence
-          </p>
-          <h1 className="text-4xl font-black text-white uppercase italic tracking-tighter">
-            Upload & Analyze
-          </h1>
-          <p className="text-sm text-zinc-500 mt-2">
-            Upload a targeted resume. After analysis, you will be redirected to its analysis page.
+          <button onClick={() => navigate("/resume")} className="inline-flex items-center gap-2 text-zinc-500 hover:text-white text-xs font-semibold transition-colors mb-6">
+            <ArrowLeft size={14} /> Back to Vault
+          </button>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Upload Document</h1>
+          <p className="text-sm text-zinc-400 font-medium mt-2">
+            Upload your PDF resume and provide target role details to generate an optimization report.
           </p>
         </div>
 
         {error && (
-          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300 flex items-center gap-2">
-            <AlertTriangle size={16} />
+          <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300 flex items-center gap-2">
+            <AlertTriangle size={18} />
             {error}
           </div>
         )}
 
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-3xl border border-white/[0.04] bg-zinc-900/40 p-8 shadow-2xl space-y-6"
-        >
-          <label className="flex items-center justify-center gap-4 h-44 rounded-3xl border border-dashed border-white/[0.1] bg-zinc-950/60 cursor-pointer hover:border-blue-500/40 transition-all">
-            <FileSearch size={28} className="text-blue-500" />
-            <div>
-              <p className="text-sm text-white font-black uppercase tracking-widest">
-                {file ? file.name : "Select PDF Resume"}
-              </p>
-              <p className="text-xs text-zinc-600 mt-1">
-                Only text-based PDF resumes are supported.
-              </p>
-            </div>
-            <input
-              type="file"
-              accept=".pdf"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="hidden"
-            />
+        <form onSubmit={handleSubmit} className="rounded-2xl border border-white/[0.04] bg-zinc-900/40 p-6 sm:p-8 shadow-sm space-y-6">
+          
+          {/* Dropzone */}
+          <label className={`flex flex-col items-center justify-center gap-3 h-40 rounded-2xl border-2 border-dashed transition-all cursor-pointer ${file ? 'border-blue-500/50 bg-blue-500/5' : 'border-white/[0.1] bg-zinc-900/50 hover:border-zinc-500'}`}>
+            {file ? (
+              <>
+                <FileText size={32} className="text-blue-500" />
+                <div className="text-center">
+                  <p className="text-sm text-white font-bold">{file.name}</p>
+                  <p className="text-xs text-blue-400 mt-1 font-medium">Ready for upload</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <UploadCloud size={32} className="text-zinc-500" />
+                <div className="text-center">
+                  <p className="text-sm text-white font-bold">Select PDF Document</p>
+                  <p className="text-xs text-zinc-500 mt-1 font-medium">Text-based PDFs yield the best parsing results.</p>
+                </div>
+              </>
+            )}
+            <input type="file" accept=".pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" />
           </label>
 
           <Input
-            label="Resume Name"
+            label="Document Name (Optional)"
             value={form.resumeName}
-            onChange={(value) => setForm({ ...form, resumeName: value })}
-            placeholder="Google SDE Intern Resume"
+            onChange={(val) => setForm({ ...form, resumeName: val })}
+            placeholder="e.g., Frontend Engineer - Google"
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <Input
               label="Target Role"
               value={form.targetRole}
-              onChange={(value) => setForm({ ...form, targetRole: value })}
-              placeholder="SDE Intern"
-              icon={<BriefcaseBusiness size={14} />}
+              onChange={(val) => setForm({ ...form, targetRole: val })}
+              placeholder="e.g., SDE Intern"
+              icon={<BriefcaseBusiness size={16} />}
             />
-
             <Input
-              label="Target Company"
+              label="Target Company (Optional)"
               value={form.targetCompany}
-              onChange={(value) => setForm({ ...form, targetCompany: value })}
-              placeholder="Google"
-              icon={<Building2 size={14} />}
+              onChange={(val) => setForm({ ...form, targetCompany: val })}
+              placeholder="e.g., Microsoft"
+              icon={<Building2 size={16} />}
             />
           </div>
 
           <div>
-            <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 block">
-              Job Description
-            </label>
+            <label className="text-xs text-zinc-400 font-semibold mb-1.5 block">Job Description</label>
             <textarea
               value={form.jobDescription}
-              onChange={(e) =>
-                setForm({ ...form, jobDescription: e.target.value })
-              }
-              placeholder="Paste the target job description here..."
-              className="w-full h-56 bg-zinc-950/60 border border-white/[0.05] rounded-2xl px-4 py-3 text-sm text-zinc-200 outline-none focus:border-blue-500/40 resize-none"
+              onChange={(e) => setForm({ ...form, jobDescription: e.target.value })}
+              placeholder="Paste the target job description to check alignment..."
+              className="w-full h-40 bg-zinc-900/80 border border-white/[0.05] rounded-xl px-4 py-3 text-sm text-zinc-200 outline-none focus:border-blue-500/50 transition-colors resize-none"
             />
           </div>
 
-          <label className="flex items-center justify-between rounded-2xl bg-black/20 border border-white/[0.04] p-4">
-            <span className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">
-              Mark as primary resume
-            </span>
+          <label className="flex items-center justify-between rounded-xl bg-zinc-800/30 border border-white/[0.03] p-4 cursor-pointer hover:bg-zinc-800/50 transition-colors">
+            <div>
+              <span className="text-sm text-white font-semibold block">Set as Primary</span>
+              <span className="text-xs text-zinc-500 font-medium">Use this document for general readiness calculations.</span>
+            </div>
             <input
               type="checkbox"
               checked={form.isPrimary}
-              onChange={(e) =>
-                setForm({ ...form, isPrimary: e.target.checked })
-              }
+              onChange={(e) => setForm({ ...form, isPrimary: e.target.checked })}
+              className="w-4 h-4 rounded border-zinc-600 text-blue-600 focus:ring-blue-500/20"
             />
           </label>
 
           <button
             type="submit"
             disabled={!file || loading}
-            className="w-full px-6 py-4 rounded-2xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full py-3.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {loading ? (
-              <span className="inline-flex items-center justify-center gap-2">
-                <Loader2 size={16} className="animate-spin" />
-                Uploading, parsing and analyzing...
-              </span>
-            ) : (
-              <span className="inline-flex items-center justify-center gap-2">
-                <Sparkles size={16} />
-                Upload & Analyze
-              </span>
-            )}
+            {loading ? <><Loader2 size={16} className="animate-spin" /> Processing Document...</> : "Upload & Generate Report"}
           </button>
         </form>
       </div>
@@ -203,24 +174,14 @@ const ResumeUpload = () => {
 
 const Input = ({ label, value, onChange, placeholder, icon }) => (
   <div>
-    <label className="text-[9px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 block">
-      {label}
-    </label>
-
+    <label className="text-xs text-zinc-400 font-semibold mb-1.5 block">{label}</label>
     <div className="relative">
-      {icon && (
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600">
-          {icon}
-        </div>
-      )}
-
+      {icon && <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500">{icon}</div>}
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full bg-zinc-950/60 border border-white/[0.05] rounded-2xl px-4 py-3 text-sm text-zinc-200 outline-none focus:border-blue-500/40 ${
-          icon ? "pl-10" : ""
-        }`}
+        className={`w-full bg-zinc-900/80 border border-white/[0.05] rounded-xl px-4 py-2.5 text-sm text-zinc-200 outline-none focus:border-blue-500/50 transition-colors ${icon ? "pl-11" : ""}`}
       />
     </div>
   </div>
