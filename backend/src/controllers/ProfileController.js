@@ -1,7 +1,7 @@
 const axios = require("axios");
 const Profile = require("../models/Profile");
 const CodingProfile = require("../models/CodingProfile");
-const redisClient = require("../config/redis"); 
+const redisClient = require("../config/redis");
 
 const toPlainObject = (value) => {
   if (!value) return {};
@@ -90,41 +90,49 @@ exports.upsertProfile = async (req, res) => {
     const { name, username, bio, skills, isPublic, codeforcesHandle, leetcodeHandle, githubHandle, codechefHandle, linkedinUrl } = req.body;
     const normalizedUsername = username ? username.toLowerCase().trim() : "";
 
-    let existing = null;
+    // Check for username conflict
     if (normalizedUsername) {
-      existing = await Profile.findOne({ username: normalizedUsername, userId: { $ne: req.user._id } });
+      const existing = await Profile.findOne({ username: normalizedUsername, userId: { $ne: req.user._id } });
+      if (existing) return res.status(400).json({ message: "Username already taken" });
     }
-    if (existing) return res.status(400).json({ message: "Username already taken" });
 
-    const normalizedSkills = Array.isArray(skills) ? skills.map((skill) => String(skill).trim()).filter(Boolean) : skills ? String(skills).split(",").map((skill) => skill.trim()).filter(Boolean) : [];
-    const cleanHandles = { codeforcesHandle: codeforcesHandle?.trim() || "", leetcodeHandle: leetcodeHandle?.trim() || "", githubHandle: githubHandle?.trim() || "", codechefHandle: codechefHandle?.trim() || "" };
-    const avatarUrl = await pickAvatarFromValidHandle(cleanHandles);
-
-    const updateData = {
-      userId: req.user._id,
-      name: name?.trim() || normalizedUsername || req.user.name || "",
-      username: normalizedUsername,
-      bio: bio || "Coding enthusiast",
-      skills: normalizedSkills,
-      isPublic: isPublic !== undefined ? Boolean(isPublic) : false,
-      ...cleanHandles,
-      linkedinUrl: linkedinUrl?.trim() || "",
+    const cleanHandles = { 
+      codeforcesHandle: codeforcesHandle?.trim() || undefined, 
+      leetcodeHandle: leetcodeHandle?.trim() || undefined, 
+      githubHandle: githubHandle?.trim() || undefined, 
+      codechefHandle: codechefHandle?.trim() || undefined 
     };
+
+    // Prepare update data (Filter out undefined to allow partial updates)
+    const updateData = { userId: req.user._id };
+    if (name !== undefined) updateData.name = name.trim();
+    if (username !== undefined) updateData.username = normalizedUsername;
+    if (bio !== undefined) updateData.bio = bio;
+    if (skills !== undefined) updateData.skills = Array.isArray(skills) ? skills : String(skills).split(",").map(s => s.trim());
+    if (isPublic !== undefined) updateData.isPublic = Boolean(isPublic);
+    if (linkedinUrl !== undefined) updateData.linkedinUrl = linkedinUrl.trim();
+    
+    // Assign handles only if they exist in the request
+    Object.keys(cleanHandles).forEach(key => { if (cleanHandles[key]) updateData[key] = cleanHandles[key]; });
+
+    // Update avatar only if handles are provided
+    const avatarUrl = await pickAvatarFromValidHandle(cleanHandles);
     if (avatarUrl) updateData.avatar = avatarUrl;
 
-    const profile = await Profile.findOneAndUpdate({ userId: req.user._id }, { $set: updateData }, { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true });
+    // Use runValidators: false for partial Onboarding saves, or handle carefully
+    const profile = await Profile.findOneAndUpdate(
+      { userId: req.user._id }, 
+      { $set: updateData }, 
+      { new: true, upsert: true, runValidators: false } 
+    );
 
-    // CACHE INVALIDATION with fallback
     if (redisClient && normalizedUsername) {
-      try {
-        await redisClient.del(`portfolio:${normalizedUsername}`);
-      } catch (redisError) {
-        console.warn("⚠️ Redis Delete Failed:", redisError.message);
-      }
+      try { await redisClient.del(`portfolio:${normalizedUsername}`); } catch (e) { console.warn("Redis Delete Failed"); }
     }
 
-    return res.status(200).json({ message: "Profile saved successfully. You can now sync coding stats.", profile });
+    return res.status(200).json({ message: "Profile updated successfully.", profile });
   } catch (error) {
+    console.error("CRITICAL ERROR IN upsertProfile:", error);
     return res.status(500).json({ message: "Failed to save profile", error: error.message });
   }
 };
@@ -134,34 +142,23 @@ exports.getProfile = async (req, res) => {
     const profile = await Profile.findOne({ userId: req.user._id });
     if (!profile) return res.status(404).json({ message: "Profile not found" });
     return res.status(200).json(profile);
-  } catch (error) {
-    return res.status(500).json({ message: "Failed to fetch profile", error: error.message });
-  }
+  } catch (error) { return res.status(500).json({ message: "Failed to fetch profile", error: error.message }); }
 };
 
 exports.validateHandle = async (req, res) => {
   try {
     const { platform, handle } = req.query;
     if (!platform || !handle) return res.status(400).json({ valid: false, message: "Platform and handle are required" });
-    const cleanPlatform = platform.toLowerCase().trim();
-    const cleanHandle = handle.trim();
-
-    if (cleanPlatform === "username") {
-      const normalizedUsername = cleanHandle.toLowerCase();
-      const existing = await Profile.findOne({ username: normalizedUsername });
+    
+    if (platform === "username") {
+      const existing = await Profile.findOne({ username: handle.toLowerCase().trim() });
       const isOwner = req.user && existing && existing.userId.toString() === req.user._id.toString();
-      if (!existing || isOwner) return res.status(200).json({ valid: true, message: "Username available" });
-      return res.status(400).json({ valid: false, message: "Username already taken" });
+      return (existing && !isOwner) ? res.status(400).json({ valid: false, message: "Username taken" }) : res.status(200).json({ valid: true });
     }
 
-    const supportedPlatforms = ["github", "leetcode", "codeforces", "codechef"];
-    if (!supportedPlatforms.includes(cleanPlatform)) return res.status(400).json({ valid: false, message: "Unsupported platform" });
-    const result = await validatePlatformHandle(cleanPlatform, cleanHandle);
-    if (result.valid) return res.status(200).json({ valid: true, avatar: result.avatar || "", message: result.message, meta: result.meta || {} });
-    return res.status(400).json({ valid: false, message: result.message || "Handle not found or platform unavailable" });
-  } catch (error) {
-    return res.status(400).json({ valid: false, message: error.message });
-  }
+    const result = await validatePlatformHandle(platform, handle);
+    return result.valid ? res.status(200).json(result) : res.status(400).json(result);
+  } catch (error) { return res.status(400).json({ valid: false, message: error.message }); }
 };
 
 exports.getPublicProfileData = async (req, res) => {
@@ -170,19 +167,10 @@ exports.getPublicProfileData = async (req, res) => {
     const normalizedUsername = username.toLowerCase().trim();
     const cacheKey = `portfolio:${normalizedUsername}`;
 
-    // 1. REDIS READ-THROUGH CACHE (with Graceful Fallback)
     if (redisClient) {
-      try {
-        const cachedData = await redisClient.get(cacheKey);
-        if (cachedData) {
-          return res.status(200).json(JSON.parse(cachedData));
-        }
-      } catch (redisError) {
-        console.warn("⚠️ Redis Read Failed, falling back to MongoDB:", redisError.message);
-      }
+      try { const cached = await redisClient.get(cacheKey); if (cached) return res.status(200).json(JSON.parse(cached)); } catch (e) {}
     }
 
-    // 2. CACHE MISS: Perform heavy MongoDB queries
     const profile = await Profile.findOne({ username: normalizedUsername, isPublic: true });
     if (!profile) return res.status(404).json({ message: "Public profile not found" });
 
@@ -191,35 +179,11 @@ exports.getPublicProfileData = async (req, res) => {
     const totalSolved = Number(coding?.codeforces?.totalSolved || 0) + Number(coding?.leetcode?.totalSolved || 0) + Number(coding?.codechef?.totalSolved || 0);
 
     const responsePayload = {
-      personal: {
-        name: profile.name, username: profile.username, bio: profile.bio, avatar: profile.avatar,
-        skills: profile.skills || [], github: profile.githubHandle, linkedin: profile.linkedinUrl, resumeUrl: profile.resumeUrl,
-      },
-      stats: {
-        totalSolved, topics: combinedTopics,
-        difficulty: {
-          easy: Number(coding?.codeforces?.easy || 0) + Number(coding?.leetcode?.easy || 0) + Number(coding?.codechef?.easy || 0),
-          medium: Number(coding?.codeforces?.medium || 0) + Number(coding?.leetcode?.medium || 0) + Number(coding?.codechef?.medium || 0),
-          hard: Number(coding?.codeforces?.hard || 0) + Number(coding?.leetcode?.hard || 0) + Number(coding?.codechef?.hard || 0),
-        },
-        platforms: {
-          leetcode: coding?.leetcode || {}, codeforces: coding?.codeforces || {}, codechef: coding?.codechef || {}, github: coding?.github || {},
-        },
-      },
+      personal: { name: profile.name, username: profile.username, bio: profile.bio, avatar: profile.avatar, skills: profile.skills || [], github: profile.githubHandle, linkedin: profile.linkedinUrl },
+      stats: { totalSolved, topics: combinedTopics, platforms: { leetcode: coding?.leetcode || {}, codeforces: coding?.codeforces || {}, codechef: coding?.codechef || {}, github: coding?.github || {} } }
     };
 
-    // 3. SET CACHE (with Graceful Fallback)
-    if (redisClient) {
-      try {
-        await redisClient.setex(cacheKey, 86400, JSON.stringify(responsePayload));
-      } catch (redisError) {
-        console.warn("⚠️ Redis Write Failed:", redisError.message);
-      }
-    }
-
+    if (redisClient) try { await redisClient.setex(cacheKey, 86400, JSON.stringify(responsePayload)); } catch (e) {}
     return res.status(200).json(responsePayload);
-  } catch (error) {
-    console.error("Public Profile Error:", error.message);
-    return res.status(500).json({ message: "Failed to fetch public profile", error: error.message });
-  }
+  } catch (error) { return res.status(500).json({ message: "Error fetching profile", error: error.message }); }
 };

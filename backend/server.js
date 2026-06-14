@@ -86,6 +86,7 @@ app.use((req, res) => {
 
 // Global error handler
 app.use((err, req, res, next) => {
+  
   console.error("Global Error:", err.message);
 
   if (err.message && err.message.startsWith("CORS blocked")) {
@@ -95,7 +96,7 @@ app.use((err, req, res, next) => {
   if (err.name === "MulterError" || err.type === 'entity.too.large') {
     return res.status(400).json({ message: "Payload or file too large." });
   }
-
+  console.error("CRITICAL ERROR REACHED MIDDLEWARE:", err);
   return res.status(err.statusCode || 500).json({
     message: "Internal server error",
   });

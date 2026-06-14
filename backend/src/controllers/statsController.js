@@ -320,22 +320,32 @@ exports.syncGitHub = async (req, res) => {
 
 exports.syncAllPlatforms = async (req, res) => {
   try {
+    // 1. RE-FETCH: Always get the absolute latest state from the DB
     const profile = await Profile.findOne({ userId: req.user._id });
     if (!profile) return res.status(404).json({ message: "Profile not found." });
     
+    // 2. Prepare the jobs using the freshly fetched handles
     const jobs = [];
     if (profile.leetcodeHandle) jobs.push(syncPlatform({ userId: req.user._id, platform: "leetcode", handle: profile.leetcodeHandle, fetcher: fetchLeetCode }));
     if (profile.codeforcesHandle) jobs.push(syncPlatform({ userId: req.user._id, platform: "codeforces", handle: profile.codeforcesHandle, fetcher: fetchCodeforces }));
     if (profile.codechefHandle) jobs.push(syncPlatform({ userId: req.user._id, platform: "codechef", handle: profile.codechefHandle, fetcher: fetchCodechef }));
     if (profile.githubHandle) jobs.push(syncPlatform({ userId: req.user._id, platform: "github", handle: profile.githubHandle, fetcher: fetchGitHub }));
+    
     if (!jobs.length) return res.status(400).json({ message: "No platform handles found." });
 
+    // 3. Execute syncs
     const settled = await Promise.allSettled(jobs);
     
-    await invalidateUserCache(req.user._id); // Clear Cache!
+    // 4. Clear cache after syncs complete
+    await invalidateUserCache(req.user._id); 
 
     const results = settled.map((item) => {
-      if (item.status === "fulfilled") return { platform: item.value.platform, success: item.value.data?.status !== "Error", data: item.value.data, error: item.value.data?.status === "Error" ? item.value.data?.error : "" };
+      if (item.status === "fulfilled") return { 
+        platform: item.value.platform, 
+        success: item.value.data?.status !== "Error", 
+        data: item.value.data, 
+        error: item.value.data?.status === "Error" ? item.value.data?.error : "" 
+      };
       return { success: false, error: item.reason?.message || "Unknown error" };
     });
 
@@ -345,7 +355,6 @@ exports.syncAllPlatforms = async (req, res) => {
     return res.status(500).json({ message: "Platform sync failed", error: error.message });
   }
 };
-
 exports.getGitHubRepos = async (req, res) => {
   try {
     const profile = await Profile.findOne({ userId: req.user._id });

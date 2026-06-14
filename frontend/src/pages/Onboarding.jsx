@@ -5,10 +5,10 @@ import { syncLeetCode, syncCodeforces, syncCodechef, syncGitHub } from "../api/s
 import { AlertCircle, CheckCircle2, Code2, ExternalLink, Github, Loader2, RefreshCw, ShieldCheck, SkipForward, Trophy, UserCheck, Utensils, Layers } from "lucide-react";
 
 const platforms = [
-  { key: "leetcode", label: "LeetCode", field: "leetcodeHandle", placeholder: "username", icon: Code2 },
-  { key: "codeforces", label: "Codeforces", field: "codeforcesHandle", placeholder: "handle", icon: Trophy },
-  { key: "codechef", label: "CodeChef", field: "codechefHandle", placeholder: "username", icon: Utensils },
-  { key: "github", label: "GitHub", field: "githubHandle", placeholder: "username", icon: Github },
+  { key: "leetcode", label: "LeetCode", field: "leetcodeHandle", placeholder: "username", icon: Code2, sync: syncLeetCode },
+  { key: "codeforces", label: "Codeforces", field: "codeforcesHandle", placeholder: "handle", icon: Trophy, sync: syncCodeforces },
+  { key: "codechef", label: "CodeChef", field: "codechefHandle", placeholder: "username", icon: Utensils, sync: syncCodechef },
+  { key: "github", label: "GitHub", field: "githubHandle", placeholder: "username", icon: Github, sync: syncGitHub },
 ];
 
 const initialHandles = platforms.reduce((acc, p) => ({ ...acc, [p.key]: "" }), {});
@@ -69,9 +69,16 @@ const Onboarding = () => {
 
     setPlatformStatus(platform.key, { state: "saving", message: "Saving..." });
     try {
+      // 1. Save handle first
       await api.post("/profile", { [platform.field]: handle });
+      
+      // 2. WAIT a moment for MongoDB to process the write
+      await new Promise(resolve => setTimeout(resolve, 800)); 
+
+      // 3. Now trigger sync
       setPlatformStatus(platform.key, { state: "syncing", message: "Syncing..." });
       await platform.sync();
+      
       setPlatformStatus(platform.key, { state: "synced", message: "Linked." });
       setNotice(`${platform.label} linked successfully.`);
     } catch (err) {
@@ -90,8 +97,17 @@ const Onboarding = () => {
     if (filledPlatforms.length === 0) return setError("Enter at least one username.");
     setSyncingAll(true);
     try {
+      // 1. Bulk save
       await saveHandlesToProfile();
-      for (const platform of filledPlatforms) await syncPlatform(platform);
+      
+      // 2. WAIT for bulk write to settle
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // 3. Sync one by one
+      for (const platform of filledPlatforms) {
+        await platform.sync();
+        setPlatformStatus(platform.key, { state: "synced", message: "Linked." });
+      }
       setNotice("Platforms synced. You can manage them later in settings.");
     } finally { setSyncingAll(false); }
   };
