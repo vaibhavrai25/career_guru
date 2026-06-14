@@ -4,6 +4,8 @@ Career Guru is a full-stack AI-driven career preparation platform built for soft
 
 The goal of Career Guru is to help students track their preparation like a product: measure coding progress, identify weak topics, generate focused study tasks, analyze resumes against target roles, and share a professional public profile with recruiters.
 
+Deployed Link- https://career-guru-eight.vercel.app
+
 ---
 
 ## Table of Contents
@@ -132,7 +134,7 @@ The system supports:
 
 Users can create and share a public portfolio at:
 
-```txt
+
 /u/:username
 
 The portfolio includes:
@@ -167,7 +169,7 @@ The visual design is inspired by a clean LeetCode-style interface:
 
 ## System Architecture
 
-```txt
+```
 Career Guru
 │
 ├── Frontend: React + Vite + Tailwind CSS
@@ -205,7 +207,7 @@ Career Guru
 └── Storage
     └── Cloudinary for resume/document storage
 
----
+```
 
 
 ## Performance and Scalability
