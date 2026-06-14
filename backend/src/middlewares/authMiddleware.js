@@ -7,25 +7,31 @@ const protect = async (req, res, next) => {
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({
-        message: "Not authorized, no token",
+        message: "Not authorized, no token provided",
       });
     }
 
     const token = authHeader.split(" ")[1];
 
     if (!process.env.JWT_SECRET) {
+      console.error("CRITICAL SECURITY ERROR: JWT_SECRET is missing.");
       return res.status(500).json({
-        message: "JWT_SECRET is missing in server configuration",
+        message: "Internal server configuration error",
       });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const user = await User.findById(decoded.id).select("-password");
+    // Verify the decoded ID exists and is a valid format before querying DB
+    if (!decoded || !decoded.id || typeof decoded.id !== 'string') {
+       return res.status(401).json({ message: "Not authorized, invalid token payload" });
+    }
+
+    const user = await User.findById(decoded.id).select("-password").lean();
 
     if (!user) {
       return res.status(401).json({
-        message: "Not authorized, user not found",
+        message: "Not authorized, user no longer exists",
       });
     }
 
@@ -33,7 +39,7 @@ const protect = async (req, res, next) => {
     next();
   } catch (error) {
     return res.status(401).json({
-      message: "Not authorized, token failed",
+      message: "Not authorized, token validation failed",
     });
   }
 };

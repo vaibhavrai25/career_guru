@@ -16,16 +16,30 @@ exports.register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
+    // Strict type checking to prevent NoSQL object injection
+    if (typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ message: "Invalid input format" });
+    }
+
     if (!name || !email || !password) {
-      return res.status(400).json({
-        message: "Name, email, and password are required",
-      });
+      return res.status(400).json({ message: "Name, email, and password are required" });
+    }
+
+    // Length boundaries to prevent database bloat and Bcrypt DoS
+    if (name.length > 100) {
+      return res.status(400).json({ message: "Name is too long (max 100 characters)" });
+    }
+
+    if (email.length > 254) {
+      return res.status(400).json({ message: "Email is too long" });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({
-        message: "Password must be at least 6 characters long",
-      });
+      return res.status(400).json({ message: "Password must be at least 6 characters long" });
+    }
+
+    if (password.length > 64) {
+      return res.status(400).json({ message: "Password cannot exceed 64 characters" });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -33,9 +47,7 @@ exports.register = async (req, res) => {
     const existingUser = await User.findOne({ email: normalizedEmail });
 
     if (existingUser) {
-      return res.status(400).json({
-        message: "User already exists",
-      });
+      return res.status(400).json({ message: "User already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -59,7 +71,6 @@ exports.register = async (req, res) => {
     });
   } catch (error) {
     console.error("Registration Error:", error.message);
-
     return res.status(500).json({
       message: "Registration failed",
       error: error.message,
@@ -71,10 +82,17 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Strict type checking to prevent NoSQL object injection
+    if (typeof email !== 'string' || typeof password !== 'string') {
+       return res.status(400).json({ message: "Invalid input format" });
+    }
+
     if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required",
-      });
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    if (password.length > 64 || email.length > 254) {
+       return res.status(400).json({ message: "Invalid credentials" }); // Keep error generic for security
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -82,17 +100,13 @@ exports.login = async (req, res) => {
     const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      return res.status(400).json({
-        message: "Invalid credentials",
-      });
+      return res.status(400).json({ message: "Invalid credentials" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(400).json({
-        message: "Invalid credentials",
-      });
+      return res.status(400).json({ message: "Invalid credentials" });
     }
 
     const token = generateToken(user._id);
@@ -108,7 +122,6 @@ exports.login = async (req, res) => {
     });
   } catch (error) {
     console.error("Login Error:", error.message);
-
     return res.status(500).json({
       message: "Login failed",
       error: error.message,
